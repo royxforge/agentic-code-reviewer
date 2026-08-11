@@ -36,6 +36,7 @@
 - [Development](#development)
 - [Configuration Reference](#configuration-reference)
 - [Troubleshooting](#troubleshooting)
+- [Limitations](#limitations)
 - [Related Work](#related-work)
 - [Citation](#citation)
 - [License](#license)
@@ -447,6 +448,8 @@ mypy src/agentic_code_reviewer            # type checking
 
 The test suite is fully offline: provider calls are transport-mocked, and the workflow/UI tests run against the deterministic mock and AdaptiveMock clients. The TUI screenshots are regenerated with `python scripts/screenshot_tui.py`.
 
+---
+
 ## Configuration Reference
 
 All settings are read from environment variables and map to `Settings` fields in `src/agentic_code_reviewer/config/settings.py`. Providers and API keys are normally set through `acr get-started` or the TUI Providers screen, which persist them to your user config.
@@ -468,6 +471,8 @@ All settings are read from environment variables and map to `Settings` fields in
 | `BENCHMARK_DATASET` / `MAX_WORKERS` | `benchmarks/datasets/fixture_small.json` / `4` | evaluation |
 | `LOG_LEVEL` / `LOG_FORMAT` | `INFO` / `json` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR`; `json` \| `text` |
 
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |
@@ -480,6 +485,8 @@ All settings are read from environment variables and map to `Settings` fields in
 | `review-local` with `mock` finds nothing | expected - the mock is a test double that returns an empty finding set; use it to smoke-test the pipeline keyless, then switch to a real provider |
 | TUI renders garbage | you're piping/redirecting output; the TUI needs a real terminal (logs go to a temp file automatically) |
 
+---
+
 ## Limitations
 
 - **LLM-dependent quality**: review quality depends on the configured model and prompt versions; results are nondeterministic by nature.
@@ -491,26 +498,21 @@ All settings are read from environment variables and map to `Settings` fields in
 
 ## Related Work
 
-- [Multi-Agent Research System](https://github.com/royxforge/multi-agent-research-system) - autonomous academic research with multi-agent verification; the same "never let one model grade its own work" principle applied to literature synthesis
-- [RAG Evaluation Framework](https://github.com/royxforge/rag-evaluation-framework) - the missing evaluation layer for production RAG systems
-- [Production Drift Detection](https://github.com/royxforge/production-drift-detection) - real-time data drift detection for production ML systems
-- [CodeRabbit](https://www.coderabbit.ai/) - AI code review with inline comments on pull requests
-- [Semgrep](https://semgrep.dev/) - fast, rule-based static analysis; Agentic Code Reviewer's deterministic rules occupy a similar niche without requiring a rules DSL
-- [CodeQL](https://codeql.github.com/) - GitHub's semantic code analysis engine
-- [SonarQube](https://www.sonarsource.com/products/sonarqube/) - continuous code quality and security inspection
-
-Agentic Code Reviewer differs from these tools in one key way: the LLM proposes, the deterministic layers dispose. Findings only reach the user when regex, AST, symbol, or taint analysis independently confirms them - the agentic workflow is not a chatbot over a diff.
+- [Multi-Agent Research System](https://github.com/royxforge/multi-agent-research-system) - The same "never let one model grade its own work" principle applied to literature synthesis: its Critic verifies claims against sources the way Agentic Code Reviewer's evidence resolver verifies findings against the repository.
+- [RAG Evaluation Framework](https://github.com/royxforge/rag-evaluation-framework) - LLM-judged faithfulness scoring and hallucination-rate metrics; Agentic Code Reviewer's layered verification is the code-review analogue of that evaluation gate.
+- [Production Drift Detection](https://github.com/royxforge/production-drift-detection) - Both systems replace expensive human judgement with continuous automated measurement: drift detection monitors model behavior in production, Agentic Code Reviewer monitors change quality at review time.
+- [Unsupervised Confidence Estimation](https://github.com/royxforge/unsupervised-confidence-estimation) - Confidence calibration without ground truth; the evidence-status and severity model here is the review-time analogue of that project's label-free confidence signal.
 
 ---
 
 ## Citation
 
 ```bibtex
-@software{agenticcodereviewer2026,
-  author = {agentic-code-reviewer contributors},
+@software{roy2026agenticcodereviewer,
+  author = {Roy, Sourav},
   title  = {Agentic Code Reviewer: Multi-Agent LLM Code Review with Layered Deterministic Verification},
   year   = {2026},
-  url    = {https://freebuff.com}
+  url    = {https://github.com/royxforge/agentic-code-reviewer}
 }
 ```
 
@@ -525,5 +527,5 @@ MIT - see [LICENSE](LICENSE)
 ---
 
 <p align="center">
-  <sub>Built by the <a href="https://freebuff.com">agentic-code-reviewer</a> contributors · AI code review tooling</sub>
+  <sub>Built by <a href="https://github.com/royxforge">Sourav Roy</a> · Artificial Intelligence Engineer · Accure Inc.</sub>
 </p>
