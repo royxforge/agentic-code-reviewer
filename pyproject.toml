@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,10 +9,15 @@ dynamic = ["version"]
 description = "Production-grade agentic code reviewer: multi-step LLM workflow with context retrieval, verification, and reproducible benchmarking."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
-authors = [{ name = "agentic-code-reviewer" }]
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Sourav Roy", email = "royxforge@gmail.com" }]
 keywords = ["code-review", "llm", "agents", "benchmark", "github"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -59,6 +64,9 @@ reviewer = "agentic_code_reviewer.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+agentic_code_reviewer = ["prompts/**/*.txt"]
 
 [tool.setuptools.dynamic]
 version = { attr = "agentic_code_reviewer.__version__" }
