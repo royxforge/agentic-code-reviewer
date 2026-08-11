@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use agentic-code-reviewer in your research or tooling, please cite it as described below."
+title: "agentic-code-reviewer"
+abstract: "Production-grade agentic code reviewer: a multi-step LLM workflow with repository context retrieval, layered deterministic verification (regex, AST, symbol, taint), cross-category correlation, and reproducible benchmarking. Exposes the acr CLI and an interactive terminal UI."
+keywords:
+  - code review
+  - static analysis
+  - large language models
+  - agents
+  - security
+  - taint analysis
+license: MIT
+version: 0.1.0
+date-released: "2026-08-11"
+authors:
+  - name: "agentic-code-reviewer contributors"
+    website: "https://freebuff.com"
+preferred-citation:
+  type: software
+  title: "agentic-code-reviewer"
+  abstract: "Production-grade agentic code reviewer with layered deterministic verification, taint analysis, and reproducible benchmarking."
+  version: 0.1.0
+  year: 2026

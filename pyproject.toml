@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-code-reviewer"
+# Version is single-sourced from src/agentic_code_reviewer/__init__.py.
+dynamic = ["version"]
+description = "Production-grade agentic code reviewer: multi-step LLM workflow with context retrieval, verification, and reproducible benchmarking."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "agentic-code-reviewer" }]
+keywords = ["code-review", "llm", "agents", "benchmark", "github"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+dependencies = [
+    "pydantic>=2.12",
+    "pydantic-settings>=2.6",
+    "typer>=0.15",
+    "rich>=13.9",
+    "httpx>=0.28",
+    "pyyaml>=6.0.2",
+    "textual>=8.0",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.60"]
+anthropic = ["anthropic>=0.40"]
+ollama = []  # Ollama is accessed over plain HTTP; no SDK required
+all = [
+    "openai>=1.60",
+    "anthropic>=0.40",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+    "types-PyYAML>=6.0.12",
+]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+    "types-PyYAML>=6.0.12",
+]
+
+[project.scripts]
+acr = "agentic_code_reviewer.cli:main"
+# Deprecated alias  -  the official command is `acr`.
+reviewer = "agentic_code_reviewer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { attr = "agentic_code_reviewer.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["experiments", "benchmarks/results"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["B008"]  # Allow typer.Depends(...) default args
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true
+exclude = ["experiments/", "benchmarks/results/"]

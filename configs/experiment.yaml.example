@@ -1,0 +1,25 @@
+# Example experiment configuration for: acr evaluate --config configs/experiment.yaml
+#
+# Every field is optional; unset values come from the environment/.env.
+
+name: "ablation-retrieval-off"
+dataset: "benchmarks/datasets/fixture_small.json"
+systems:
+  - "single-pass"
+  - "context"
+  - "rag"
+  - "agentic"
+limit: 20            # set to null to run the full dataset
+
+# Settings overrides (keys map to Settings field names; see src/agentic_code_reviewer/config/settings.py)
+settings:
+  llm_provider: "openai"       # openai | anthropic | ollama | mock
+  min_finding_confidence: 0.6
+  workflow_use_retrieval: false   # ablation: turn RAG off for the agentic system
+  workflow_use_verifier: true
+  workflow_use_security_agent: true
+  workflow_use_testing_agent: true
+
+notes: >
+  Ablation study: agentic workflow with retrieval disabled. Compare against an
+  identical run with workflow_use_retrieval: true to isolate the value of RAG.

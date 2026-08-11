@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+
+# Generated / mutable data
+benchmarks/results/*
+!benchmarks/results/.gitkeep
+benchmarks/datasets/*.jsonl
+benchmarks/datasets/*.json
+!benchmarks/datasets/README.md
+!benchmarks/datasets/fixture_small.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

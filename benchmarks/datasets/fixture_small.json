@@ -1,0 +1,58 @@
+{
+  "name": "fixture_small",
+  "description": "Synthetic, self-contained benchmark cases used for CI and smoke testing. These are NOT historical bugs: real historical data is populated by scripts/fetch_swebench.py. Entries are explicitly marked hold_out=False only for framework testing.",
+  "entries": [
+    {
+      "entry_id": "fixture-sql-injection",
+      "repository": "fixtures/sample-repo",
+      "commit": "aaaa1111",
+      "parent_commit": "aaaa0000",
+      "bug_description": "SQL injection: the user-controlled `query` string is interpolated directly into the SQL statement via an f-string instead of a parameterized query, allowing an attacker to alter the executed SQL.",
+      "bug_fix": "Use a parameterized query: db.execute('SELECT * FROM users WHERE name LIKE ?', ('%' + query + '%',))",
+      "hold_out": true,
+      "diff": "diff --git a/db.py b/db.py\n--- a/db.py\n+++ b/db.py\n@@ -10,7 +10,7 @@ def search_users(query):\n     \"\"\"Return users whose name contains the query.\"\"\"\n-    sql = \"SELECT * FROM users WHERE name LIKE ?\"\n-    params = (f\"%{query}%\",)\n+    sql = f\"SELECT * FROM users WHERE name LIKE '%{query}%'\"\n+    params = ()\n     return _db.execute(sql, params)\n",
+      "affected_files": ["db.py"],
+      "language": "python",
+      "category": "security",
+      "severity": "high",
+      "base_files": {
+        "db.py": "import sqlite3\n\n_db = None\n\n\ndef init(path):\n    global _db\n    _db = sqlite3.connect(path)\n\n\ndef search_users(query):\n    \"\"\"Return users whose name contains the query.\"\"\"\n    sql = \"SELECT * FROM users WHERE name LIKE ?\"\n    params = (f\"%{query}%\",)\n    return _db.execute(sql, params)\n",
+        "app.py": "from db import search_users\n\n\ndef handle(request):\n    q = request.get(\"q\", \"\")\n    return search_users(q)\n"
+      }
+    },
+    {
+      "entry_id": "fixture-off-by-one",
+      "repository": "fixtures/sample-repo",
+      "commit": "bbbb1111",
+      "parent_commit": "bbbb0000",
+      "bug_description": "Binary search boundary bug: the loop now uses `low < high` and compares with `>` instead of `>=`, so when the threshold value exists exactly at a position, the search returns the next greater element or None instead of the exact match.",
+      "bug_fix": "Revert to `while low <= high` and `items[mid] >= threshold` so exact matches are found.",
+      "hold_out": true,
+      "diff": "diff --git a/search.py b/search.py\n--- a/search.py\n+++ b/search.py\n@@ -3,9 +3,9 @@ def find_first(items, threshold):\n     \"\"\"Return the first index whose value is >= threshold.\"\"\"\n     low, high = 0, len(items) - 1\n-    while low <= high:\n+    while low < high:\n         mid = (low + high) // 2\n-        if items[mid] >= threshold:\n+        if items[mid] > threshold:\n             high = mid\n         else:\n             low = mid + 1\n-    return items[low] if items[low] >= threshold else None\n+    return items[low] if items[low] > threshold else None\n",
+      "affected_files": ["search.py"],
+      "language": "python",
+      "category": "correctness",
+      "severity": "medium",
+      "base_files": {
+        "search.py": "def find_first(items, threshold):\n    \"\"\"Return the first index whose value is >= threshold.\"\"\"\n    low, high = 0, len(items) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if items[mid] >= threshold:\n            high = mid\n        else:\n            low = mid + 1\n    return items[low] if items[low] >= threshold else None\n"
+      }
+    },
+    {
+      "entry_id": "fixture-clean-refactor",
+      "repository": "fixtures/sample-repo",
+      "commit": "cccc1111",
+      "parent_commit": "cccc0000",
+      "bug_description": "",
+      "bug_fix": "",
+      "hold_out": true,
+      "diff": "diff --git a/utils.py b/utils.py\n--- a/utils.py\n+++ b/utils.py\n@@ -1,4 +1,4 @@\ndef format_name(first, last):\n-    return first + \" \" + last\n+    return f\"{first} {last}\"\n",
+      "affected_files": ["utils.py"],
+      "language": "python",
+      "category": "",
+      "severity": "",
+      "base_files": {
+        "utils.py": "def format_name(first, last):\n    return first + \" \" + last\n"
+      }
+    }
+  ]
+}
