@@ -59,6 +59,7 @@ from agentic_code_reviewer.ui.screens.home import (
 from agentic_code_reviewer.ui.screens.pipeline import PipelineScreen
 from agentic_code_reviewer.ui.screens.providers import ProvidersScreen
 from agentic_code_reviewer.ui.screens.results import ResultsScreen
+from agentic_code_reviewer.ui.screens.splash import SplashScreen
 from agentic_code_reviewer.ui.widgets import AppHeader, dispatch_action
 
 # Shared design-system: brand palette mapped onto Textual's theme variables
@@ -474,6 +475,17 @@ class HomeApp(ReviewFlowMixin):
         self.settings = apply_runtime_config(get_settings())
 
     def on_mount(self) -> None:
+        if self.is_headless:
+            # Headless runs (tests, screenshot capture) skip the boot splash
+            # so programmatic drivers see the launcher immediately.
+            self._show_launcher()
+            return
+        # Real terminal: brand splash first; it calls back when dismissed
+        # (auto-timer or any key), then the launcher dashboard appears.
+        self.push_screen(SplashScreen(on_dismiss=self._show_launcher))
+
+    def _show_launcher(self) -> None:
+        """Push the launcher dashboard (plus onboarding on first run)."""
         self.push_screen(HomeScreen(self.initial_path))
         # First-run onboarding: no stored provider and nothing set via the
         # environment  -  guide the user into provider setup before the

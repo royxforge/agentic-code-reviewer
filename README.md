@@ -304,14 +304,19 @@ Typing `acr` opens a full-screen Textual launcher; the live pipeline, findings b
 
 Real screenshots (regenerate anytime with `python scripts/screenshot_tui.py`):
 
-| Launcher | Providers & API keys | Review history | Help |
-|---|---|---|---|
-| ![home screen](docs/screenshots/home.svg) | ![providers screen](docs/screenshots/providers.svg) | ![history screen](docs/screenshots/history.svg) | ![help screen](docs/screenshots/help.svg) |
+| Boot splash | Launcher | Providers & API keys |
+|---|---|---|
+| ![splash screen](docs/screenshots/splash.svg) | ![home screen](docs/screenshots/home.svg) | ![providers screen](docs/screenshots/providers.svg) |
 
-| Live pipeline | Findings browser | Findings by category | Benchmark runner |
-|---|---|---|---|
-| ![pipeline screen](docs/screenshots/pipeline.svg) | ![results screen](docs/screenshots/results.svg) | ![categories screen](docs/screenshots/categories.svg) | ![benchmark screen](docs/screenshots/benchmark.svg) |
+| Review history | Help | Live pipeline |
+|---|---|---|
+| ![history screen](docs/screenshots/history.svg) | ![help screen](docs/screenshots/help.svg) | ![pipeline screen](docs/screenshots/pipeline.svg) |
 
+| Findings browser | Findings by category | Benchmark runner |
+|---|---|---|
+| ![results screen](docs/screenshots/results.svg) | ![categories screen](docs/screenshots/categories.svg) | ![benchmark screen](docs/screenshots/benchmark.svg) |
+
+- **Boot splash** - the brand moment when `acr` launches: block-letter logo, product name, version, and an animated loading line; auto-dismisses after ~1.8s or skips on any key
 - **Launcher** - the Claude-Code-style home screen: review this directory, review another path, providers & API keys, history, help, or quit (`↑`/`↓` or `j`/`k` + enter, or the number keys)
 - **Pipeline** - animated stage tracker (Planning → Analysis → Synthesis), live severity counters, usage ticker (tokens, cost, LLM calls, elapsed)
 - **Results** - severity-pill summary, findings table, detail card with evidence, impact, and recommendation

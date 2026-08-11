@@ -113,6 +113,28 @@ W = 118
 H = 38
 
 
+def capture_splash() -> None:
+    """Boot splash: brand logo + version + animated loading line.
+
+    Captured mid-animation (a few spinner frames in) but well before the
+    ``SPLASH_SECONDS`` auto-dismiss timer fires.
+    """
+    from agentic_code_reviewer.ui.screens.splash import SplashScreen
+
+    app = _HostApp(path=".", settings=Settings(LLM_PROVIDER="mock"))
+
+    async def _run() -> None:
+        async with app.run_test(size=(W, H)) as pilot:
+            app.push_screen(SplashScreen())
+            for _ in range(3):
+                await pilot.pause(0.15)
+            svg = app.export_screenshot(title="Agentic Code Reviewer  -  boot splash")
+            (OUT / "splash.svg").write_text(svg, encoding="utf-8")
+            print("wrote", OUT / "splash.svg")
+
+    asyncio.run(_run())
+
+
 def capture_home() -> None:
     """Launcher menu with a ready provider banner."""
     os.environ["OPENAI_API_KEY"] = "sk-demo-9f8e7d6c"  # in-process only
@@ -333,6 +355,8 @@ def main() -> None:
         sys.exit(1)
     seed_dir = _isolate_runtime_config()
     _seed_runtime(seed_dir)
+    print("capturing splash ...", flush=True)
+    capture_splash()
     print("capturing home ...", flush=True)
     capture_home()
     print("capturing providers ...", flush=True)
