@@ -86,7 +86,7 @@ class Review(BaseModel):
     findings: list[ReviewFinding] = Field(default_factory=list)
 
     generated_by: str = "agentic-code-reviewer"
-    version: str = "0.1.0"
+    version: str = "0.2.0"
     model: str = ""
     prompt_versions: dict[str, str] = Field(default_factory=dict)
     confidence_threshold: float = 0.0

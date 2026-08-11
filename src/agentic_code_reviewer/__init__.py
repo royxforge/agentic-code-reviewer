@@ -6,5 +6,5 @@ like an experienced senior engineer: planner -> analysis agents -> verification
 recovery, and reproducible benchmarking.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 SYSTEM_NAME = "agentic-code-reviewer"

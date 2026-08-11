@@ -5,7 +5,7 @@ All notable changes to **agentic-code-reviewer** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-08-11
 
 ### Added
 
@@ -13,6 +13,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `acr <path>`) auto-opens a welcome screen that funnels into the provider
   wizard, offers a keyless mock-provider tour, or can be dismissed. It never
   reappears once any provider is configured or set via the environment.
+- **Published to PyPI**: `agentic-code-reviewer` is now installable with
+  `pip install agentic-code-reviewer`; the 30 prompt templates ship inside
+  the wheel via explicit package data.
+- **Automatic releases via GitHub Actions**: pushing a `v*` tag runs the
+  test suite, verifies the tag matches `__version__`, builds the sdist and
+  wheel, and uploads to PyPI using the `PYPI_API_TOKEN` repository secret.
+- **README badges**: PyPI version, PyPI downloads, and GitHub Actions
+  publish-status badges in the header row.
+
+### Changed
+
+- **No `.env` file anywhere**: all configuration (providers, models, API
+  keys) is done from the CLI or TUI; the `.env.example` file and all
+  `.env` references were removed from code, docs, and UI copy.
+- The provider status label "env" was renamed to "environment" in the CLI
+  table, TUI Providers screen, and README.
+- Package metadata modernized: PEP 639 `license = "MIT"` with
+  `license-files`, SPDX-aligned classifiers, and the author field now
+  matches `CITATION.cff`.
+
+### Fixed
+
+- Prompt templates are now bundled in the built wheel (previously they were
+  omitted, which would have broken reviews installed from PyPI).
 
 ## [0.1.0] - 2026-08-11
 

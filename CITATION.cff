@@ -6,7 +6,7 @@ authors:
     email: royxforge@gmail.com
     orcid: ""
 title: "Agentic Code Reviewer: Multi-Agent LLM Code Review with Layered Deterministic Verification"
-version: 0.1.0
+version: 0.2.0
 date-released: 2026-08-11
 url: "https://github.com/royxforge/agentic-code-reviewer"
 repository-code: "https://github.com/royxforge/agentic-code-reviewer"

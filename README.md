@@ -3,11 +3,14 @@
 
 <p align="left">
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/pypi/v/agentic-code-reviewer?style=flat-square&logo=pypi&logoColor=white" />
+  <img src="https://img.shields.io/pypi/dm/agentic-code-reviewer?style=flat-square" />
   <img src="https://img.shields.io/badge/CLI-Typer-3fa037?style=flat-square" />
   <img src="https://img.shields.io/badge/TUI-Textual-a78bfa?style=flat-square" />
   <img src="https://img.shields.io/badge/Categories-23-6366f1?style=flat-square" />
   <img src="https://img.shields.io/badge/Providers-6-0ea5e9?style=flat-square" />
   <img src="https://img.shields.io/badge/Tests-380%20passing-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/github/actions/workflow/status/royxforge/agentic-code-reviewer/publish.yml?style=flat-square&label=publish" />
   <img src="https://img.shields.io/badge/License-MIT-6366f1?style=flat-square" />
 </p>
 
