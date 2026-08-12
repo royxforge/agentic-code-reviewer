@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/TUI-Textual-a78bfa?style=flat-square" />
   <img src="https://img.shields.io/badge/Categories-23-6366f1?style=flat-square" />
   <img src="https://img.shields.io/badge/Providers-6-0ea5e9?style=flat-square" />
-  <img src="https://img.shields.io/badge/Tests-380%20passing-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/badge/Tests-386%20passing-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/github/actions/workflow/status/royxforge/agentic-code-reviewer/publish.yml?style=flat-square&label=publish" />
   <img src="https://img.shields.io/badge/License-MIT-6366f1?style=flat-square" />
 </p>
@@ -77,7 +77,7 @@ The core requirement is not "generate findings." It is "generate findings that h
 
 ## Key Results
 
-> **380 tests passing, ruff clean, mypy clean across 91 source files, and a fully offline test suite - provider calls are transport-mocked and workflow/UI tests run against deterministic mock clients.**
+> **386 tests passing, ruff clean, mypy clean across 92 source files, and a fully offline test suite - provider calls are transport-mocked and workflow/UI tests run against deterministic mock clients.**
 
 | Signal | Value |
 |---|---|
@@ -86,7 +86,7 @@ The core requirement is not "generate findings." It is "generate findings that h
 | LLM providers | 6 (OpenAI, Anthropic, Gemini, OpenAI-compatible, Ollama, mock) |
 | Output formats | Markdown, JSON, SARIF 2.1.0 |
 | Benchmark systems | single-pass, context, rag, agentic |
-| Test suite | 380 passing, fully offline |
+| Test suite | 386 passing, fully offline |
 | Runtime execution of reviewed code | never |
 
 An honest benchmark: metrics are empty until experiments actually run - nothing is fabricated. Run `acr benchmark` (keyless with the mock provider) to reproduce the full harness yourself.
@@ -449,7 +449,7 @@ python scripts/fetch_swebench.py --output benchmarks/datasets/swebench_review.js
 ```bash
 pip install -e ".[dev]"           # or ".[all]" for providers + dev tools
 
-pytest                            # 380 tests: unit + integration + failure-path
+pytest                            # 386 tests: unit + integration + failure-path
 ruff check src/ tests/            # lint
 mypy src/agentic_code_reviewer            # type checking
 ```

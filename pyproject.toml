@@ -55,6 +55,9 @@ dev = [
     "ruff>=0.9",
     "mypy>=1.14",
     "types-PyYAML>=6.0.12",
+    # The OpenAI client tests construct the real SDK-backed client, so the
+    # SDK must be present wherever tests run (CI installs ".[dev]").
+    "openai>=1.60",
 ]
 
 [project.scripts]
