@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-21
+
 ### Added
 
 - **Knowledgebase**: persistent, cross-run repository knowledge injected into
@@ -60,6 +62,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Prompt regression suite**: golden tests pin the canonical fixture-diff
   findings through the full workflow, so a prompt-template or prompt-assembly
   edit can never silently drop a confirmed finding.
+
+### Fixed
+
+- **Category model override for OpenAI-compatible provider**: the provider
+  lookup compared the hyphenated provider string (`openai-compatible`) against
+  the underscore key (`openai_compatible`), silently falling back to the wrong
+  settings field. The provider string is now normalised before lookup.
+- **`yaml-load` verification regex**: the negative lookahead for `Loader=` was
+  placed after the closing paren, so safe calls like
+  `yaml.load(data, Loader=SafeLoader)` still matched and produced
+  false-positive security confirmations. The lookahead is now inside the
+  call arguments.
+- **Aggregator fallback double-ranking**: `_fallback_review` applied
+  `rank_findings` twice; the redundant second call is removed.
+- **SARIF `informationUri`**: pointed to a non-existent GitHub org; corrected
+  to `https://github.com/royxforge/agentic-code-reviewer`.
+- **README**: test-count badge and references updated from 386 to 432.
 
 ## [0.2.1] - 2026-08-12
 

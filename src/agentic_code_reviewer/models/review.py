@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from agentic_code_reviewer import __version__
 from agentic_code_reviewer.models.findings import ReviewFinding
 
 # The set of analysis checks the planner may request.
@@ -86,7 +87,7 @@ class Review(BaseModel):
     findings: list[ReviewFinding] = Field(default_factory=list)
 
     generated_by: str = "agentic-code-reviewer"
-    version: str = "0.2.1"
+    version: str = __version__
     model: str = ""
     prompt_versions: dict[str, str] = Field(default_factory=dict)
     confidence_threshold: float = 0.0
