@@ -47,6 +47,10 @@ Repository context (relevant excerpts):
 
 $CONTEXT$
 
+Knowledgebase (relevant past verified findings, rules and decisions for this repository):
+
+$KNOWLEDGE$
+
 Analyze the change for internationalization defects. Produce a JSON object with
 exactly these fields:
 - "agent": "i18n"

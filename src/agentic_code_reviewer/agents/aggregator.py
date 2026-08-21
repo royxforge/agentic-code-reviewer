@@ -44,11 +44,17 @@ class AggregatorAgent(BaseAgent):
         cost = 0.0
         calls = 0
 
+        # Cap the findings serialized into the LLM prompt: the model can only
+        # down-select from what it sees, and huge finding sets would blow the
+        # aggregator budget. The full ranked list is kept for the fallback.
+        cap = self.settings.aggregator_max_findings
+        candidates = ranked[:cap] if cap > 0 else ranked
+
         if ranked:
             try:
                 system, task = self._render(
                     FINDINGS=json.dumps(
-                        [f.model_dump(mode="json") for f in ranked], indent=2
+                        [f.model_dump(mode="json") for f in candidates], indent=2
                     ),
                     PLAN=state.plan.model_dump_json() if state.plan else "{}",
                     CHANGE_SUMMARY=(

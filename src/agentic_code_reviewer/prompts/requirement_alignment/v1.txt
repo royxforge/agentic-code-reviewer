@@ -56,6 +56,10 @@ Repository context (relevant excerpts):
 
 $CONTEXT$
 
+Knowledgebase (relevant past verified findings, rules and decisions for this repository):
+
+$KNOWLEDGE$
+
 Analyze whether the change satisfies the stated requirement. Produce a JSON
 object with exactly these fields:
 - "agent": "requirement_alignment"

@@ -40,6 +40,10 @@ Repository context (relevant excerpts):
 
 $CONTEXT$
 
+Knowledgebase (relevant past verified findings, rules and decisions for this repository):
+
+$KNOWLEDGE$
+
 Analyze the change for regression risk. Produce a JSON object with exactly
 these fields:
 - "agent": "regression"

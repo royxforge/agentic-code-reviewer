@@ -41,6 +41,8 @@ class ReviewState:
     plan: ReviewPlan | None = None
     change_summary: ChangeSummary | None = None
     context_chunks: list[ContextChunk] = field(default_factory=list)
+    # Relevant knowledgebase entries for this review (persistent repo memory).
+    knowledge_entries: list[Any] = field(default_factory=list)
     # Shared repository snapshot built once per review (never rebuilt per agent).
     snapshot: Any = None
 

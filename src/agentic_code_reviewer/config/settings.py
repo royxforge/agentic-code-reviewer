@@ -135,6 +135,42 @@ class Settings(BaseSettings):
     chunk_overlap_chars: int = Field(default=200, alias="CHUNK_OVERLAP_CHARS")
     local_embedding_dim: int = Field(default=1024, alias="LOCAL_EMBEDDING_DIM")
 
+    # ---- Knowledgebase ----
+    # Persistent, cross-run knowledge injected into analysis prompts: curated
+    # rules/conventions, auto-captured verified findings, and indexed docs.
+    knowledge_enabled: bool = Field(default=True, alias="KNOWLEDGE_ENABLED")
+    # Directory for the JSONL knowledge store; empty -> user config dir.
+    knowledge_dir: Path = Field(default=Path(""), alias="KNOWLEDGE_DIR")
+    knowledge_top_k: int = Field(default=4, alias="KNOWLEDGE_TOP_K")
+    # Hard cap on the rendered knowledge block injected into a prompt.
+    knowledge_max_chars: int = Field(default=1200, alias="KNOWLEDGE_MAX_CHARS")
+    # Persist confirmed/strongly_supported findings back into the store after
+    # each review (repo memory). Off by default; opt in per user or per repo.
+    knowledge_auto_capture: bool = Field(
+        default=False, alias="KNOWLEDGE_AUTO_CAPTURE"
+    )
+
+    # ---- Token usage ----
+    # Analysis agents emit compact finding lists; cap their output budget below
+    # the general MAX_TOKENS to cut cost without losing findings.
+    analysis_max_tokens: int = Field(default=4096, alias="ANALYSIS_MAX_TOKENS")
+    # Emit Anthropic cache_control on the (identical) system block so the 22
+    # parallel analysis agents share one cached prefix instead of 22 full reads.
+    use_prompt_caching: bool = Field(default=True, alias="USE_PROMPT_CACHING")
+    # Cap the findings serialized into the aggregator prompt (the LLM can only
+    # down-select from what it sees; very large finding sets would otherwise
+    # blow the aggregator token budget).
+    aggregator_max_findings: int = Field(default=60, alias="AGGREGATOR_MAX_FINDINGS")
+
+    # ---- LLM response cache ----
+    # Content-addressed cache of structured LLM responses, keyed by
+    # (prompt content, model, temperature, max_tokens). Repeat reviews of
+    # identical diffs (CI) skip the LLM entirely. Off by default because it
+    # changes reproducibility semantics; enable per repo or per run.
+    llm_cache_enabled: bool = Field(default=False, alias="LLM_CACHE_ENABLED")
+    # Cache directory (empty -> user config dir / cache).
+    llm_cache_dir: Path = Field(default=Path(""), alias="LLM_CACHE_DIR")
+
     # ---- Evaluation / benchmark ----
     benchmark_dataset: Path = Field(
         default=Path("benchmarks/datasets/fixture_small.json"),
@@ -223,7 +259,13 @@ class Settings(BaseSettings):
             raise ValueError("MIN_FINDING_CONFIDENCE must be within [0, 1]")
         return value
 
-    @field_validator("max_tokens", "llm_max_retries")
+    @field_validator(
+        "max_tokens",
+        "llm_max_retries",
+        "analysis_max_tokens",
+        "knowledge_top_k",
+        "aggregator_max_findings",
+    )
     @classmethod
     def _validate_positive(cls, value: int) -> int:
         if value < 1:

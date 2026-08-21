@@ -26,6 +26,7 @@ class AnthropicClient(BaseLLMClient):
 
         self.model = settings.anthropic_model
         self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        self._use_prompt_caching = settings.use_prompt_caching
 
     def complete(
         self,
@@ -46,7 +47,21 @@ class AnthropicClient(BaseLLMClient):
             if m["role"] == "user"
         ]
         try:
-            system_arg: Any = anthropic.NOT_GIVEN if not system else system
+            if not system:
+                system_arg: Any = anthropic.NOT_GIVEN
+            elif self._use_prompt_caching:
+                # All 22 parallel analysis agents share the same system prompt;
+                # marking it cacheable turns 22 full reads into one read + 21
+                # cache reads on the identical prefix (a large cost cut).
+                system_arg = [
+                    {
+                        "type": "text",
+                        "text": system,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ]
+            else:
+                system_arg = system
             resp = self._client.messages.create(
                 model=self.model,
                 system=system_arg,

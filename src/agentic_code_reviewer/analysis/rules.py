@@ -36,7 +36,7 @@ SECURITY_PATTERNS: list[tuple[str, Pattern[str]]] = [
     ("shell-true", re.compile(r"shell\s*=\s*True", re.IGNORECASE)),
     ("inner-html", re.compile(r"(innerHTML|outerHTML|dangerouslySetInnerHTML)\s*=", re.IGNORECASE)),
     ("pickle-loads", re.compile(r"pickle\s*\.\s*loads?\s*\(")),
-    ("yaml-load", re.compile(r"yaml\s*\.\s*load\s*\([^)]*\)(?!\s*,\s*Loader)", re.IGNORECASE)),
+    ("yaml-load", re.compile(r"yaml\s*\.\s*load\s*\((?![^)]*Loader\s*=)[^)]*\)", re.IGNORECASE)),
     (
         "str-format-sql",
         re.compile(r"(SELECT|INSERT|UPDATE|DELETE).{0,200}%(s|d)\s*[,)]", re.IGNORECASE | re.DOTALL),

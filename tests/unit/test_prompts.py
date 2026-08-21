@@ -64,12 +64,30 @@ def test_requirement_alignment_prompt_uses_requirement_token():
         PLAN="{}",
         CHANGE_SUMMARY="{}",
         CONTEXT="",
+        KNOWLEDGE="",
         CHANGED_FILES="a.py",
         REPOSITORY="o/r",
         REQUIREMENT="make search case-insensitive",
         HISTORY="",
     )
     assert "make search case-insensitive" in task
+
+
+def test_analysis_prompt_accepts_knowledge_token():
+    system, task = render(
+        "security",
+        "v1",
+        DIFF="d",
+        PLAN="{}",
+        CHANGE_SUMMARY="{}",
+        CONTEXT="",
+        KNOWLEDGE="- [security] SQL injection in db.py: use parameterized queries",
+        CHANGED_FILES="db.py",
+        REPOSITORY="o/r",
+        REQUIREMENT="",
+        HISTORY="",
+    )
+    assert "use parameterized queries" in task
 
 
 def test_planner_prompt_rejects_missing_requirement():

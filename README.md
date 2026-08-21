@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/TUI-Textual-a78bfa?style=flat-square" />
   <img src="https://img.shields.io/badge/Categories-23-6366f1?style=flat-square" />
   <img src="https://img.shields.io/badge/Providers-6-0ea5e9?style=flat-square" />
-  <img src="https://img.shields.io/badge/Tests-386%20passing-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/badge/Tests-432%20passing-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/github/actions/workflow/status/royxforge/agentic-code-reviewer/publish.yml?style=flat-square&label=publish" />
   <img src="https://img.shields.io/badge/License-MIT-6366f1?style=flat-square" />
 </p>
@@ -71,13 +71,15 @@ The core requirement is not "generate findings." It is "generate findings that h
 11. **Machine-readable output** - JSON and **SARIF 2.1.0** (GitHub Advanced Security / GitLab code scanning / VS Code), with human status on stderr so stdout stays parseable
 12. **Six LLM providers** - OpenAI, Anthropic, Google Gemini, any OpenAI-compatible endpoint (vLLM, LM Studio, Groq, OpenRouter, DeepSeek), Ollama locally, and a deterministic mock for tests
 13. **Reproducible benchmark harness** - single-pass vs context vs RAG vs agentic systems compared under identical conditions, with leakage-controlled datasets
-14. **Secure by design** - repository content is treated as untrusted data (prompt-injection defenses), reviewed application code is never executed, and secrets are never logged
+14. **Persistent knowledgebase** - curated rules/conventions, auto-captured verified findings (repo memory), and indexed docs injected into analysis prompts via `$KNOWLEDGE$`; deterministic token-overlap retrieval with zero extra token cost
+15. **Token-aware by design** - category-focused diff views per agent, compact plan/summary digests, Anthropic prompt caching on the shared system block, and per-agent output caps keep cost low on every run
+16. **Secure by design** - repository content is treated as untrusted data (prompt-injection defenses), reviewed application code is never executed, and secrets are never logged
 
 ---
 
 ## Key Results
 
-> **386 tests passing, ruff clean, mypy clean across 92 source files, and a fully offline test suite - provider calls are transport-mocked and workflow/UI tests run against deterministic mock clients.**
+> **432 tests passing, ruff clean, mypy clean across 100 source files, and a fully offline test suite - provider calls are transport-mocked and workflow/UI tests run against deterministic mock clients.**
 
 | Signal | Value |
 |---|---|
@@ -86,7 +88,7 @@ The core requirement is not "generate findings." It is "generate findings that h
 | LLM providers | 6 (OpenAI, Anthropic, Gemini, OpenAI-compatible, Ollama, mock) |
 | Output formats | Markdown, JSON, SARIF 2.1.0 |
 | Benchmark systems | single-pass, context, rag, agentic |
-| Test suite | 386 passing, fully offline |
+| Test suite | 432 passing, fully offline |
 | Runtime execution of reviewed code | never |
 
 An honest benchmark: metrics are empty until experiments actually run - nothing is fabricated. Run `acr benchmark` (keyless with the mock provider) to reproduce the full harness yourself.
@@ -188,12 +190,14 @@ agentic-code-reviewer/
 |   +-- analysis/          diff parsing, repository snapshot, AST rules, taint
 |   |                      engine, severity model, category rules, aggregation
 |   +-- retrieval/         symbol-aware chunking, embeddings, vector index
+|   +-- knowledge/         persistent knowledgebase: models, JSONL store,
+|   |                      token-overlap retrieval, auto-capture, prompt renderer
 |   +-- github/            GitHubClient, models, adapters
 |   +-- llm/               provider clients (OpenAI, Anthropic, Gemini, Ollama,
 |   |                      OpenAI-compatible, mock), retries, structured output
 |   +-- evaluation/        benchmark, baselines, metrics, experiments, runner
 |   +-- cli/               typer CLI: review commands, init, completion, exporters,
-|   |                      interactive triage
+|   |                      interactive triage, knowledge management
 |   +-- ui/                Textual TUI: apps, screens, widgets, theme
 |   +-- config/  models/  observability/  local/  prompts/
 |
@@ -272,6 +276,8 @@ LLM_PROVIDER=mock acr benchmark --dataset benchmarks/datasets/fixture_small.json
 | `acr benchmark --dataset <file>` | Run baseline + agentic systems over a dataset |
 | `acr evaluate --config <yaml>` | Run a reproducible experiment from a config |
 | `acr init` | Scaffold a `.reviewer.yaml` repository policy file |
+| `acr knowledge add/list/remove/search` | Manage curated rules, auto-captured findings, and indexed docs |
+| `acr knowledge index-docs <path>` | Index markdown docs into the knowledgebase |
 | `acr completion bash\|zsh\|fish\|powershell` | Print shell completion |
 | `acr tui …` | The same commands inside the interactive dashboard |
 | `acr --version` | Show the version |
@@ -405,6 +411,45 @@ severity_weights:
 
 ---
 
+## Knowledgebase
+
+`acr` can remember across reviews. The knowledgebase is a persistent store (JSONL under your user config dir, `config_dir()/knowledge/`) of three kinds of entries, all injected into analysis prompts via the `$KNOWLEDGE$` block:
+
+| Kind | How it gets in | Example |
+|---|---|---|
+| `rule` | `acr knowledge add --title ... --content ...` | "This repo uses SQLAlchemy 2.0 style" |
+| `finding` | auto-captured when `KNOWLEDGE_AUTO_CAPTURE=true` (repo memory) | "[high] SQL injection in db.py (2026-08-15): use parameterized queries" |
+| `dismissed` | recorded automatically when a finding is dismissed in triage | "SQL injection via interpolated query (dismissed: suppress in future reviews)" |
+| `doc` | `acr knowledge index-docs docs/` | a section from `docs/architecture.md` |
+
+```bash
+acr knowledge add --repo owner/repo --category security \
+    --title "Parameterized SQL required" \
+    --content "Never interpolate user input into SQL strings; use ? placeholders."
+
+acr knowledge list --repo owner/repo
+acr knowledge search "sql injection" --repo owner/repo
+acr knowledge index-docs docs/ --repo owner/repo
+```
+
+Retrieval is deterministic token-overlap scoring - **no LLM call and no embedding endpoint** - so the knowledgebase adds zero token cost and works fully offline. The next review of the same repository sees the entries most relevant to the current diff and can reference past decisions instead of re-deriving them.
+
+**Learning loop:** the knowledgebase is not just one-way memory. Dismiss a finding in interactive triage (`-i`) and a `dismissed` entry is recorded for that repository - future reviews suppress findings that match it (same category + strong token overlap, or same file + category). The reviewer learns "we already decided this class of issue is acceptable here" from your decisions.
+
+## Token Usage
+
+Every run is token-aware by design, and several levers cut cost on the 22 parallel analysis calls:
+
+- **Category-focused diffs**: each analysis agent only receives the hunks its deterministic patterns care about (`diff_text_for_category`), falling back to the full diff when nothing matches. The full diff is still what the evidence verifier checks against.
+- **Compact digests**: prompts receive only the plan/change-summary fields agents actually read, not the full model dumps.
+- **Anthropic prompt caching**: the identical system block is marked `cache_control` (opt-out: `USE_PROMPT_CACHING=false`), so parallel agents pay one full read + cache reads.
+- **Per-agent output caps**: `ANALYSIS_MAX_TOKENS=4096` (vs the global `MAX_TOKENS=8192`).
+- **Bounded knowledge**: `KNOWLEDGE_MAX_CHARS` caps the injected `$KNOWLEDGE$` block.
+- **Aggregator cap**: `AGGREGATOR_MAX_FINDINGS` (default 60) limits the findings serialized into the aggregator prompt.
+- **LLM response cache**: with `LLM_CACHE_ENABLED=true`, structured responses are stored on disk keyed by prompt content + model + params, so repeat reviews of identical diffs (CI) skip the provider entirely.
+
+Watch the live usage ticker (tokens, cost, LLM calls) in the TUI pipeline screen, or read `token_usage` / `estimated_cost_usd` from `--format json` output.
+
 ## Machine-Readable Output
 
 - **`--format json`** - canonical machine view of the review (findings, metrics, model, cost, token usage) for dashboards and downstream tooling
@@ -449,7 +494,7 @@ python scripts/fetch_swebench.py --output benchmarks/datasets/swebench_review.js
 ```bash
 pip install -e ".[dev]"           # or ".[all]" for providers + dev tools
 
-pytest                            # 386 tests: unit + integration + failure-path
+pytest                            # 432 tests: unit + integration + failure-path
 ruff check src/ tests/            # lint
 mypy src/agentic_code_reviewer            # type checking
 ```
@@ -474,6 +519,14 @@ All settings are read from environment variables and map to `Settings` fields in
 | `DIFF_TOKEN_BUDGET` / `CONTEXT_CHAR_BUDGET` | `14000` / `24000` | context budgeting |
 | `RETRIEVAL_ENABLED` / `RETRIEVAL_TOP_K` | `true` / `6` | RAG behaviour |
 | `EMBEDDING_PROVIDER` | `auto` | `auto` \| `openai` \| `ollama` \| `gemini` \| `openai-compatible` \| `local` |
+| `KNOWLEDGE_ENABLED` / `KNOWLEDGE_TOP_K` | `true` / `4` | knowledgebase behaviour |
+| `KNOWLEDGE_DIR` | user config `knowledge/` | JSONL knowledge store location |
+| `KNOWLEDGE_MAX_CHARS` | `1200` | hard cap on the `$KNOWLEDGE$` block injected into a prompt |
+| `KNOWLEDGE_AUTO_CAPTURE` | `false` | persist verified findings as repo memory after each review |
+| `ANALYSIS_MAX_TOKENS` | `4096` | per-analysis-agent output cap (vs the global `MAX_TOKENS`) |
+| `USE_PROMPT_CACHING` | `true` | Anthropic `cache_control` on the shared system block (cost cut for parallel agents) |
+| `AGGREGATOR_MAX_FINDINGS` | `60` | cap on findings serialized into the aggregator prompt |
+| `LLM_CACHE_ENABLED` / `LLM_CACHE_DIR` | `false` / config `cache/llm` | content-addressed disk cache of structured LLM responses (repeat-review cost cut) |
 | `GITHUB_TOKEN` / `GITHUB_REVIEW_PUBLISH` | - / `false` | GitHub integration |
 | `WORKFLOW_USE_RETRIEVAL` / `WORKFLOW_USE_VERIFIER` / `WORKFLOW_USE_*_AGENT` / `WORKFLOW_USE_DEAD_CODE_CHECKER` | all `true` | ablation switches - disable individual categories |
 | `BENCHMARK_DATASET` / `MAX_WORKERS` | `benchmarks/datasets/fixture_small.json` / `4` | evaluation |

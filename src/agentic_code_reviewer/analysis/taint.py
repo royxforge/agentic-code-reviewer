@@ -107,24 +107,62 @@ class _Summary:
     returns_param: list[bool] = field(default_factory=list)
 
 
+def build_cross_file_summaries(module_asts: dict[str, ast.Module]) -> dict[str, _Summary]:
+    """Function summaries for every module, keyed by function name.
+
+    Lets taint flow across module boundaries: a changed file calling a helper
+    defined elsewhere resolves the helper's summary (does its parameter reach a
+    sink? does it return a tainted value?) the same way same-file summaries
+    work. First definition wins on name collisions (a deliberate, documented
+    heuristic - no import-resolution).
+    """
+    merged: dict[str, _Summary] = {}
+    for module in module_asts.values():
+        funcs: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+        for node in ast.walk(module):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                funcs.setdefault(node.name, node)
+        local = _build_summaries(funcs)
+        for name, summary in local.items():
+            merged.setdefault(name, summary)
+    return merged
+
+
 def taint_scan(
-    path: str, source_lines: list[str], module: ast.Module
+    path: str,
+    source_lines: list[str],
+    module: ast.Module,
+    cross_file_summaries: dict[str, _Summary] | None = None,
 ) -> list[TaintResult]:
-    """Run taint analysis over one Python file; never raises."""
+    """Run taint analysis over one Python file; never raises.
+
+    ``cross_file_summaries`` (from :func:`build_cross_file_summaries`) extends
+    the analysis to helpers defined in other modules.
+    """
     try:
-        return _scan(path, source_lines, module)
+        return _scan(path, source_lines, module, cross_file_summaries)
     except Exception:  # noqa: BLE001 - taint analysis must never crash a review
         return []
 
 
 # ----------------------------------------------------------------------
-def _scan(path: str, source_lines: list[str], module: ast.Module) -> list[TaintResult]:
+def _scan(
+    path: str,
+    source_lines: list[str],
+    module: ast.Module,
+    cross_file_summaries: dict[str, _Summary] | None = None,
+) -> list[TaintResult]:
     funcs: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
     for node in ast.walk(module):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             funcs.setdefault(node.name, node)
 
     summaries = _build_summaries(funcs)
+    # Merge cross-file summaries last so same-file definitions win. The global
+    # map is already fully built, so this can never recurse.
+    if cross_file_summaries:
+        for name, summary in cross_file_summaries.items():
+            summaries.setdefault(name, summary)
     results: list[TaintResult] = []
     for node in module.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):

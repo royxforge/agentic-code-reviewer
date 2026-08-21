@@ -2,7 +2,10 @@
 
 import ast
 
-from agentic_code_reviewer.analysis.taint import taint_scan
+from agentic_code_reviewer.analysis.taint import (
+    build_cross_file_summaries,
+    taint_scan,
+)
 
 
 def _results(src: str) -> list:
@@ -110,3 +113,103 @@ def test_safe_code_has_no_taint_results():
         "    return sum(result)\n"
     )
     assert _results(src) == []
+
+
+# ---------------------------------------------------------------------------
+# Cross-file taint
+# ---------------------------------------------------------------------------
+
+
+def _cross_results(
+    changed_src: str,
+    other_modules: dict[str, str],
+    changed_path: str = "app.py",
+) -> list:
+    """Taint-scan ``changed_src`` with summaries built from ``other_modules``."""
+    asts: dict[str, ast.Module] = {}
+    for path, src in other_modules.items():
+        asts[path] = ast.parse(src)
+    summaries = build_cross_file_summaries(asts)
+    return taint_scan(
+        changed_path,
+        changed_src.splitlines(),
+        ast.parse(changed_src),
+        cross_file_summaries=summaries,
+    )
+
+
+def test_cross_file_helper_to_sink():
+    """A tainted value passed to a helper defined in another module hits the sink."""
+    handler = (
+        "from queries import run_query\n"
+        "def handler(request):\n"
+        '    q = request.get("q", "")\n'
+        "    return run_query(q)\n"
+    )
+    queries = (
+        "def run_query(sql):\n"
+        '    return db.execute(f"SELECT * FROM t WHERE n={sql}")\n'
+    )
+    kinds = {r.sink_kind for r in _cross_results(handler, {"queries.py": queries})}
+    assert "sql" in kinds
+
+
+def test_cross_file_chain_two_helpers():
+    """Taint flows through multiple helpers across modules to a shell sink."""
+    handler = (
+        "from helpers import first\n"
+        "def handler(request):\n"
+        '    raw = request.get("u", "")\n'
+        "    return first(raw)\n"
+    )
+    helpers = (
+        "def first(v):\n"
+        "    return second(v)\n"
+        "\n"
+        "def second(x):\n"
+        "    return subprocess.run(x, shell=True)\n"
+    )
+    kinds = {r.sink_kind for r in _cross_results(handler, {"helpers.py": helpers})}
+    assert "shell" in kinds
+
+
+def test_cross_file_returns_param_keeps_taint():
+    """A helper that returns its argument keeps the taint flowing onward."""
+    handler = (
+        "from util import passthrough\n"
+        "def handler(request):\n"
+        '    name = request.get("n", "")\n'
+        "    safe = passthrough(name)\n"
+        "    return os.system(safe)\n"
+    )
+    util = "def passthrough(x):\n    return x\n"
+    kinds = {r.sink_kind for r in _cross_results(handler, {"util.py": util})}
+    assert "shell" in kinds
+
+
+def test_cross_file_without_summaries_stays_silent():
+    """Without cross-file summaries the same flow is NOT reported (honest scope)."""
+    handler = (
+        "from queries import run_query\n"
+        "def handler(request):\n"
+        '    q = request.get("q", "")\n'
+        "    return run_query(q)\n"
+    )
+    assert _results(handler) == []
+
+
+def test_cross_file_sanitizer_in_helper_clears_taint():
+    """A sanitizer inside the cross-file helper stops the flow."""
+    handler = (
+        "from util import scrub\n"
+        "def handler(request):\n"
+        '    q = request.get("q", "")\n'
+        "    return scrub(q)\n"
+    )
+    util = (
+        "def scrub(v):\n"
+        "    safe = v.replace(';', '')\n"
+        "    return db.execute('SELECT 1')\n"
+    )
+    # The helper's own body reaches no sink with its parameter: nothing reported.
+    assert _cross_results(handler, {"util.py": util}) == []

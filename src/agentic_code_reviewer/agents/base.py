@@ -98,16 +98,18 @@ class AnalysisAgent(BaseAgent):
         self, state: ReviewState, diff_text: str, **extra: object
     ) -> tuple[str, str]:
         from agentic_code_reviewer.analysis.context import render_context
+        from agentic_code_reviewer.knowledge.render import render_knowledge
 
-        plan = state.plan.model_dump_json() if state.plan else "{}"
-        change_summary = (
-            state.change_summary.model_dump_json() if state.change_summary else "{}"
-        )
         return self._render(
             DIFF=diff_text,
-            PLAN=plan,
-            CHANGE_SUMMARY=change_summary,
+            PLAN=compact_plan(state.plan),
+            CHANGE_SUMMARY=compact_change_summary(state.change_summary),
             CONTEXT=render_context(state.context_chunks),
+            KNOWLEDGE=render_knowledge(
+                state.knowledge_entries,
+                max_chars=self.settings.knowledge_max_chars,
+                repository=state.request.repository,
+            ),
             CHANGED_FILES=", ".join(state.request.changed_files),
             REPOSITORY=state.request.repository,
             REQUIREMENT=state.request.description,
@@ -154,7 +156,50 @@ class AnalysisAgent(BaseAgent):
             AnalysisResult,
             system=system,
             task=task,
-            max_tokens=max_tokens,
+            max_tokens=max_tokens or self.settings.analysis_max_tokens,
         )
         parsed.agent = self.name
         return self._run(parsed, usage, cost, calls)
+
+
+def compact_plan(plan) -> str:
+    """A compact JSON view of the plan for prompts (token-efficient).
+
+    The full plan model carries fields the analysis agents never read
+    (decomposition internals, empty lists). The prompts only need the summary,
+    risk areas and required checks  -  sending the rest wastes tokens across the
+    22 parallel analysis calls.
+    """
+    if plan is None:
+        return "{}"
+    import json
+
+    return json.dumps(
+        {
+            "summary": plan.summary,
+            "risk_areas": plan.risk_areas,
+            "required_checks": plan.required_checks,
+            "affected_components": plan.affected_components,
+        },
+        ensure_ascii=False,
+    )
+
+
+def compact_change_summary(summary) -> str:
+    """A compact JSON view of the change understanding for prompts."""
+    if summary is None:
+        return "{}"
+    import json
+
+    return json.dumps(
+        {
+            "purpose": summary.purpose,
+            "api_changes": summary.api_changes,
+            "affected_callers": summary.affected_callers,
+            "affected_tests": summary.affected_tests,
+            "known_facts": summary.known_facts,
+            "inferences": summary.inferences,
+            "backward_compatibility": summary.backward_compatibility,
+        },
+        ensure_ascii=False,
+    )

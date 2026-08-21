@@ -5,6 +5,62 @@ All notable changes to **agentic-code-reviewer** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Knowledgebase**: persistent, cross-run repository knowledge injected into
+  analysis prompts. Three kinds of entries, stored as JSONL under the user
+  config dir (`config_dir()/knowledge/`):
+  - **Curated rules / conventions** (`acr knowledge add`) - e.g. "this repo
+    uses SQLAlchemy 2.0 style".
+  - **Auto-captured verified findings** (repo memory, opt-in via
+    `KNOWLEDGE_AUTO_CAPTURE=true`): confirmed / strongly-supported findings
+    from past reviews are persisted and injected into future reviews.
+  - **Indexed docs** (`acr knowledge index-docs <path>`): markdown sections
+    become searchable entries.
+  - Retrieval is deterministic token-overlap (no LLM call, no embedding
+    endpoint), so the knowledgebase adds zero token cost and works offline.
+  - New CLI: `acr knowledge add|list|remove|search|index-docs`.
+  - New settings: `KNOWLEDGE_ENABLED`, `KNOWLEDGE_DIR`, `KNOWLEDGE_TOP_K`,
+    `KNOWLEDGE_MAX_CHARS`, `KNOWLEDGE_AUTO_CAPTURE`.
+
+### Changed
+
+- **Token-usage reduction**:
+  - Analysis agents now receive a **category-focused diff** (`diff_text_for_category`):
+    each agent only sees the hunks its deterministic patterns care about,
+    falling back to the full diff when nothing matches - the single biggest
+    per-agent token cut (previously every agent re-read the whole change).
+  - **Compact plan / change-summary JSON** in prompts (only the fields agents
+    read), cutting tokens across all parallel analysis calls.
+  - **Anthropic prompt caching**: the shared system block is marked with
+    `cache_control` (opt-out via `USE_PROMPT_CACHING=false`), so the 22
+    parallel analysis agents pay one full read + cache reads instead of 22.
+  - **Per-agent output cap**: analysis agents default to `ANALYSIS_MAX_TOKENS`
+    (4096) instead of the global `MAX_TOKENS` (8192).
+- Analysis prompts now render a `$KNOWLEDGE$` block (empty when the
+  knowledgebase has nothing relevant).
+- **Dismiss-to-knowledge feedback loop**: dismissing a finding in interactive
+  triage records a `dismissed` knowledge entry for the repository; later
+  reviews suppress findings that match it (same category + strong token
+  overlap, or same file + category). The knowledgebase now learns from user
+  decisions, not just auto-capture.
+- **LLM response cache**: content-addressed disk cache keyed by
+  `(prompt content, model, temperature, max_tokens)` - repeat reviews of
+  identical diffs (CI) skip the provider entirely. Opt-in via
+  `LLM_CACHE_ENABLED=true` (off by default because it changes reproducibility
+  semantics); `llm_call_count` / `estimated_cost_usd` reflect only real calls.
+- **Cross-file taint propagation**: function summaries are built across the
+  whole repository snapshot, so a changed file calling a helper defined in
+  another module now reports sinks that previously required same-file flows.
+- **Aggregator top-N cap**: `AGGREGATOR_MAX_FINDINGS` (default 60) limits the
+  findings serialized into the aggregator prompt, keeping huge finding sets
+  from blowing the LLM budget; the full ranked set remains the fallback.
+- **Prompt regression suite**: golden tests pin the canonical fixture-diff
+  findings through the full workflow, so a prompt-template or prompt-assembly
+  edit can never silently drop a confirmed finding.
+
 ## [0.2.1] - 2026-08-12
 
 ### Added

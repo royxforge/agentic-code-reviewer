@@ -53,6 +53,10 @@ Repository context (relevant excerpts, may include the repository's test tree):
 
 $CONTEXT$
 
+Knowledgebase (relevant past verified findings, rules and decisions for this repository):
+
+$KNOWLEDGE$
+
 Assess test coverage of the changed behavior against the behavioral matrix.
 Produce a JSON object with exactly these fields:
 - "agent": "testing"

@@ -46,6 +46,10 @@ Repository context (relevant excerpts):
 
 $CONTEXT$
 
+Knowledgebase (relevant past verified findings, rules and decisions for this repository):
+
+$KNOWLEDGE$
+
 Analyze the change for privacy/compliance risk. Produce a JSON object with
 exactly these fields:
 - "agent": "privacy"

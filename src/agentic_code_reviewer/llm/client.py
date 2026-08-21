@@ -47,6 +47,10 @@ class LLMResponse:
     content: str
     usage: LLMUsage = field(default_factory=LLMUsage)
     raw: Any = None
+    # True when this response came from the content-addressed disk cache (no
+    # provider call was made). Usage is zeroed so cost/call counters reflect
+    # only real LLM calls.
+    cached: bool = False
 
 
 class BaseLLMClient(ABC):
@@ -54,6 +58,9 @@ class BaseLLMClient(ABC):
 
     provider: str
     model: str
+    # Optional content-addressed cache attached by ``build_llm_client`` when
+    # LLM_CACHE_ENABLED is set (see llm/cache.py). Defaults to None.
+    response_cache: object | None = None
 
     @abstractmethod
     def complete(
@@ -80,16 +87,37 @@ class BaseLLMClient(ABC):
         max_retries: int = 3,
         backoff: float = 2.0,
     ) -> LLMResponse:
-        """Call :meth:`complete`, retrying transient failures with backoff."""
+        """Call :meth:`complete`, retrying transient failures with backoff.
+
+        When a :class:`ResponseCache` is attached (``self.response_cache``) the
+        request is served from disk on a content-address hit, skipping the
+        provider entirely.
+        """
+        cache = getattr(self, "response_cache", None)
+        key: str | None = None
+        if cache is not None:
+            key = cache.key(
+                messages,
+                model=self.model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            hit = cache.get(key)
+            if hit is not None:
+                return hit
+
         last_error: Exception | None = None
         for attempt in range(max_retries + 1):
             try:
-                return self.complete(
+                response = self.complete(
                     messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
                     timeout=timeout,
                 )
+                if cache is not None and key is not None:
+                    cache.put(key, response)
+                return response
             except LLMRateLimitError as exc:
                 last_error = exc
             except LLMTimeoutError as exc:
@@ -107,6 +135,19 @@ class BaseLLMClient(ABC):
 
 def build_llm_client(settings: Settings) -> BaseLLMClient:
     """Construct the configured LLM client (lazy provider imports)."""
+    client = _build_client_inner(settings)
+    if settings.llm_cache_enabled:
+        from agentic_code_reviewer.llm.cache import ResponseCache
+
+        try:
+            client.response_cache = ResponseCache(settings.llm_cache_dir or None)
+        except Exception:  # noqa: BLE001 - a broken cache dir must not kill the client
+            pass
+    return client
+
+
+def _build_client_inner(settings: Settings) -> BaseLLMClient:
+    """Construct the configured LLM client without cache wiring."""
     # Normalize the user-facing "openai-compatible" spelling. The environment-variable path
     # is normalized by Settings, but CLI overrides via model_copy(update=...)
     # bypass pydantic validators, so be defensive here too.

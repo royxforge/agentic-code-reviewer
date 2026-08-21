@@ -54,6 +54,10 @@ Repository context (relevant excerpts, may include deployment/config files):
 
 $CONTEXT$
 
+Knowledgebase (relevant past verified findings, rules and decisions for this repository):
+
+$KNOWLEDGE$
+
 Analyze the change for configuration/deployment defects. Produce a JSON object with exactly
 these fields:
 - "agent": "configuration"

@@ -66,6 +66,45 @@ def test_rank_orders_by_severity_then_confidence():
     ]
 
 
+def test_aggregator_caps_findings_sent_to_llm():
+    """AGGREGATOR_MAX_FINDINGS limits what the LLM sees, not the fallback set."""
+    import json
+
+    from agentic_code_reviewer.agents.aggregator import AggregatorAgent
+    from agentic_code_reviewer.config.settings import Settings
+    from agentic_code_reviewer.llm.mock_client import MockLLMClient
+    from agentic_code_reviewer.orchestration.state import ReviewRequest, ReviewState
+
+    seen: list[str] = []
+
+    class CapturingMock(MockLLMClient):
+        def complete(self, messages, **kwargs):
+            seen.append("\n".join(m.get("content", "") for m in messages))
+            return super().complete(messages, **kwargs)
+
+    settings = Settings(
+        LLM_PROVIDER="mock",
+        LOG_FORMAT="text",
+        LOG_LEVEL="WARNING",
+        AGGREGATOR_MAX_FINDINGS="2",
+    )
+    state = ReviewState(
+        request=ReviewRequest(repository="o/r", diff_text="", changed_files=["db.py"])
+    )
+    state.findings = [_f(severity=s, start_line=i + 1) for i, s in enumerate(["low", "medium", "high", "critical"])]
+    agent = AggregatorAgent(settings, CapturingMock())
+    agent.run(state)
+
+    assert seen, "aggregator should have called the LLM"
+    payload = seen[0]
+    start = payload.index('Candidate findings (JSON):') + len('Candidate findings (JSON):')
+    end = payload.index('Produce the final review')
+    candidates_json = payload[start:end].strip()
+    parsed = json.loads(candidates_json)
+    assert isinstance(parsed, list)
+    assert len(parsed) <= 2  # capped
+
+
 def test_cross_check_keeps_evidence_and_drops_invented():
     candidates = [
         _f(start_line=11, evidence="original evidence"),

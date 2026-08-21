@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import typer
@@ -41,6 +42,7 @@ from rich.table import Table
 from agentic_code_reviewer import __version__
 from agentic_code_reviewer.cli import interactive
 from agentic_code_reviewer.cli.exporters import export_review
+from agentic_code_reviewer.cli.knowledge import knowledge_app
 from agentic_code_reviewer.config.file_config import (
     ConfigError,
     RepoConfig,
@@ -114,6 +116,7 @@ tui_app = typer.Typer(
     short_help="Interactive terminal dashboard",
 )
 app.add_typer(tui_app)
+app.add_typer(knowledge_app)
 
 
 # ---------------------------------------------------------------------------
@@ -351,6 +354,7 @@ def _finish_review(
     local_path: str | None = None,
     repo_config: RepoConfig | None = None,
     notice: str = "",
+    settings: Settings | None = None,
 ) -> None:
     """Render, optionally triage, then enforce the quality gate (shared tail)."""
     if repo_config is not None and config_notice(repo_config):
@@ -364,10 +368,14 @@ def _finish_review(
     if notice:
         err_console.print(f"[dim]{notice}[/dim]")
     if interactive_mode or auto_apply:
+        # Dismissals become repo memory: a dismissed finding is recorded as a
+        # ``dismissed`` knowledge entry so future reviews suppress similar ones.
+        dismissals = _dismissal_recorder(settings)
         actions = interactive.run_triage(
             result.review.findings,
             local_path=local_path,
             auto_apply=auto_apply,
+            on_finding=dismissals,
         )
         if auto_apply and actions["apply"]:
             console.print(
@@ -376,6 +384,35 @@ def _finish_review(
     # Gate status always goes to stderr: ``--format json`` must stay clean on stdout.
     _enforce_gate(_gate_violation(result, effective_gate), effective_gate, err_console)
     RuntimeConfig.load().record_review_result(result)
+
+
+def _dismissal_recorder(
+    settings: Settings | None,
+) -> Callable[[object, str], None] | None:
+    """Build the ``on_finding`` triage callback that records dismissals.
+
+    Returns None when the knowledgebase is disabled, so triage behavior is
+    otherwise unchanged.
+    """
+    if settings is None or not settings.knowledge_enabled:
+        return None
+
+    def _record(finding: object, action: str) -> None:
+        if action != "dismiss":
+            return
+        try:
+            from agentic_code_reviewer.knowledge.dismiss import finding_to_dismissal_entry
+            from agentic_code_reviewer.knowledge.store import KnowledgeStore
+            from agentic_code_reviewer.models.findings import ReviewFinding
+
+            if not isinstance(finding, ReviewFinding):
+                return
+            store = KnowledgeStore(settings.knowledge_dir or None)
+            store.add(finding_to_dismissal_entry(finding, finding.repository))
+        except Exception:  # noqa: BLE001 - knowledge must never break triage
+            pass
+
+    return _record
 
 
 # ---------------------------------------------------------------------------
@@ -749,6 +786,7 @@ def review(
         output=output,
         fmt=fmt,
         fail_on=fail_on,
+        settings=settings,
     )
     if publish:
         _publish(github, repo, pr, result)
@@ -774,7 +812,9 @@ def review_commit(
     if requirement:
         request.description = requirement
     result = _run(request, settings)
-    _finish_review(result, output=output, fmt=fmt, fail_on=fail_on)
+    _finish_review(
+        result, output=output, fmt=fmt, fail_on=fail_on, settings=settings
+    )
 
 
 @app.command()
@@ -809,6 +849,7 @@ def review_local(
         auto_apply=auto_apply,
         local_path=request.local_path,
         repo_config=repo_config,
+        settings=settings,
     )
 
 

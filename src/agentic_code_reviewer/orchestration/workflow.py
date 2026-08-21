@@ -64,10 +64,19 @@ from agentic_code_reviewer.analysis.decomposition import (
     group_files,
     should_decompose,
 )
-from agentic_code_reviewer.analysis.diff import DiffFile, diff_to_text, parse_diff
+from agentic_code_reviewer.analysis.diff import (
+    DiffFile,
+    diff_text_for_category,
+    diff_to_text,
+    parse_diff,
+)
 from agentic_code_reviewer.analysis.snapshot import RepositorySnapshot
 from agentic_code_reviewer.config.settings import Settings
 from agentic_code_reviewer.errors import ReviewerError
+from agentic_code_reviewer.knowledge.capture import capture_review_findings
+from agentic_code_reviewer.knowledge.dismiss import suppressed_by_dismissals
+from agentic_code_reviewer.knowledge.models import KnowledgeKind
+from agentic_code_reviewer.knowledge.store import KnowledgeStore
 from agentic_code_reviewer.llm.client import BaseLLMClient, build_llm_client
 from agentic_code_reviewer.models.findings import AgentError
 from agentic_code_reviewer.models.review import Review, ReviewPlan
@@ -153,11 +162,23 @@ class Workflow:
         client: BaseLLMClient | None = None,
         retriever: Retriever | None = None,
         event_sink: EventSink | None = None,
+        knowledge_store: KnowledgeStore | None = None,
     ) -> None:
         self.settings = settings
         self.client = client or build_llm_client(settings)
         self.retriever = retriever
         self._sink = event_sink or NOOP_SINK
+        # Persistent repo memory; built lazily (only when enabled) so a missing
+        # or unconfigured store never affects a review.
+        self.knowledge_store = (
+            knowledge_store
+            if knowledge_store is not None
+            else (
+                KnowledgeStore(settings.knowledge_dir or None)
+                if settings.knowledge_enabled
+                else None
+            )
+        )
 
         self.planner = PlannerAgent(settings, self.client)
         self.change_analyzer = ChangeAnalyzerAgent(settings, self.client)
@@ -229,6 +250,9 @@ class Workflow:
         # 4. Context (retrieval or deliberate context selector)
         self._build_context(state)
 
+        # 4b. Knowledgebase (persistent repo memory)  -  injected via $KNOWLEDGE$
+        self._load_knowledge(state)
+
         # 5. Analysis agents (parallel across checks x groups)
         self._run_analysis_agents(state, groups)
 
@@ -238,8 +262,14 @@ class Workflow:
         # 7. Cross-category correlation + interaction analysis
         self._run_correlation(state)
 
+        # 7b. Suppress findings dismissed in past reviews (repo memory)
+        self._apply_dismissals(state)
+
         # 8. Aggregation (deterministic + LLM)
         self._run_aggregator(state)
+
+        # 8b. Auto-capture verified findings into the knowledgebase (opt-in)
+        self._capture_knowledge(state)
 
         result = WorkflowResult(
             review=state.final_review,  # type: ignore[arg-type]
@@ -341,6 +371,90 @@ class Workflow:
             status = "ok" if summaries else "failed:ChangeAnalysis"
             state.record_stage("change_analyzer", status, time.monotonic() - start)
 
+    def _load_knowledge(self, state: ReviewState) -> None:
+        """Load the knowledgebase entries relevant to this review into state."""
+        if self.knowledge_store is None:
+            return
+        try:
+            from agentic_code_reviewer.analysis.context import build_query
+
+            query = self._knowledge_query(state, build_query(state))
+            state.knowledge_entries = self.knowledge_store.relevant(
+                query,
+                state.request.repository,
+                top_k=self.settings.knowledge_top_k,
+            )
+        except Exception as exc:  # noqa: BLE001 - knowledge must never break a review
+            state.knowledge_entries = []
+            log.warning("workflow.knowledge_failed", extra={"error": type(exc).__name__})
+        log.info("workflow.knowledge", extra={"entries": len(state.knowledge_entries)})
+
+    @staticmethod
+    def _knowledge_query(state: ReviewState, base_query: str) -> str:
+        """A retrieval query grounded in the change itself.
+
+        The query is used only for local token-overlap scoring (never sent to
+        the LLM), so including the diff text is free and makes relevance far
+        better: an entry about "f-string SQL" matches a diff containing one.
+        """
+        added: list[str] = []
+        try:
+            for diff_file in parse_diff(state.request.diff_text):
+                added.extend(ln.text for ln in diff_file.added_lines)
+        except Exception:  # noqa: BLE001 - best-effort query enrichment
+            pass
+        parts = [base_query, *added]
+        return "\n".join(parts)[:8000]
+
+    def _apply_dismissals(self, state: ReviewState) -> None:
+        """Drop findings that match a user-dismissed entry from past reviews."""
+        if self.knowledge_store is None or not state.findings:
+            return
+        try:
+            dismissals = [
+                e
+                for e in self.knowledge_store.entries(state.request.repository)
+                if e.kind == KnowledgeKind.DISMISSED
+            ]
+            if not dismissals:
+                return
+            kept = suppressed_by_dismissals(
+                state.findings, dismissals, repository=state.request.repository
+            )
+            dropped = len(state.findings) - len(kept)
+            if dropped:
+                state.findings = kept
+                log.info(
+                    "workflow.dismissals",
+                    extra={"suppressed": dropped, "kept": len(kept)},
+                )
+        except Exception as exc:  # noqa: BLE001 - dismissals must never break a review
+            log.warning(
+                "workflow.dismissals_failed",
+                extra={"error": type(exc).__name__},
+            )
+
+    def _capture_knowledge(self, state: ReviewState) -> None:
+        """Persist verified findings back into the knowledgebase (opt-in)."""
+        if (
+            self.knowledge_store is None
+            or not self.settings.knowledge_auto_capture
+            or not state.findings
+        ):
+            return
+        try:
+            captured = capture_review_findings(
+                self.knowledge_store,
+                state.findings,
+                state.request.repository,
+            )
+            log.info("workflow.knowledge_captured", extra={"entries": captured})
+        except Exception as exc:  # noqa: BLE001 - capture must never break a review
+            log.warning(
+                "workflow.knowledge_capture_failed",
+                extra={"error": type(exc).__name__},
+            )
+
     def _build_context(self, state: ReviewState) -> None:
         retriever = self._build_retriever(state)
         try:
@@ -414,7 +528,11 @@ class Workflow:
             agent = _ANALYSIS_AGENTS[check](self.settings, self._client_for_category(check))
             for group in groups:
                 task_names.append(check)
-                tasks.append(partial(agent.run, state, diff_to_text(group)))
+                # Category-focused diff: each agent only sees the hunks its
+                # deterministic patterns care about, cutting per-agent tokens
+                # (the full diff is still what the verifier checks against).
+                category = getattr(agent, "category", check)
+                tasks.append(partial(agent.run, state, diff_text_for_category(group, category)))
         start = time.monotonic()
         runs = self._run_parallel(state, "analysis", tasks, task_names=task_names)
         elapsed = time.monotonic() - start
@@ -455,13 +573,14 @@ class Workflow:
             return self.client
         cache = self._category_clients
         if check not in cache:
+            provider = self.client.provider.replace("-", "_")
             field = {
                 "openai": "openai_model",
                 "anthropic": "anthropic_model",
                 "gemini": "gemini_model",
                 "ollama": "ollama_model",
                 "openai_compatible": "openai_compatible_model",
-            }.get(self.client.provider, "openai_model")
+            }.get(provider, "openai_model")
             settings = self.settings.model_copy(update={field: override})
             try:
                 cache[check] = build_llm_client(settings)
@@ -547,7 +666,7 @@ class Workflow:
                 if state.plan
                 else "(aggregator unavailable; deterministic fallback)"
             ),
-            findings=rank_findings(filtered),
+            findings=filtered,
             model=f"{self.client.provider}/{self.client.model}",
             confidence_threshold=self.settings.min_finding_confidence,
         )

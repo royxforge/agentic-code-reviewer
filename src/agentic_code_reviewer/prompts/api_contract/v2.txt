@@ -63,6 +63,10 @@ Repository context (relevant excerpts):
 
 $CONTEXT$
 
+Knowledgebase (relevant past verified findings, rules and decisions for this repository):
+
+$KNOWLEDGE$
+
 Repository callers of changed symbols (from the symbol index, may be empty):
 
 $CALLERS$

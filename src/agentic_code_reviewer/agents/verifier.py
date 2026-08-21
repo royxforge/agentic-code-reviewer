@@ -48,6 +48,9 @@ class VerifierAgent(BaseAgent):
         except Exception:  # noqa: BLE001 - verification degrades gracefully
             pass
         self._taint_cache: dict[str, list] = {}
+        # Cross-file taint summaries: built once from the shared snapshot so
+        # taint flows can cross module boundaries (helper -> sink).
+        self._cross_file_summaries = self._build_cross_file_summaries(state)
         results: list[VerificationResult] = []
         for finding in state.findings:
             result = self._verify(finding, files, state)
@@ -203,6 +206,18 @@ class VerifierAgent(BaseAgent):
             )
         return ""
 
+    def _build_cross_file_summaries(self, state: ReviewState) -> dict | None:
+        """Function summaries across the snapshot (None when unavailable)."""
+        snapshot = getattr(state, "snapshot", None)
+        if snapshot is None or not getattr(snapshot, "_asts", None):
+            return None
+        from agentic_code_reviewer.analysis.taint import build_cross_file_summaries
+
+        try:
+            return build_cross_file_summaries(snapshot._asts)  # noqa: SLF001
+        except Exception:  # noqa: BLE001 - cross-file taint is an enhancement
+            return None
+
     def _taint_on_line(self, snapshot, path: str, line: int, state) -> list[tuple[str, str]]:
         """Taint results for ``path`` (cached per verifier run), filtered to line."""
         if path not in self._taint_cache:
@@ -220,7 +235,12 @@ class VerifierAgent(BaseAgent):
         if module is None:
             return []
         source_lines = state.request.repo_files.get(path, "").splitlines()
-        return taint_scan(path, source_lines, module)
+        return taint_scan(
+            path,
+            source_lines,
+            module,
+            cross_file_summaries=getattr(self, "_cross_file_summaries", None),
+        )
 
     @staticmethod
     def _removed_text(diff_file: DiffFile) -> str:

@@ -270,3 +270,43 @@ def diff_to_text(files: list[DiffFile]) -> str:
             if h.missing_newline_eof:
                 out.append(r"\ No newline at end of file")
     return "\n".join(out)
+
+
+def diff_text_for_category(
+    files: list[DiffFile], category: str, *, max_chars: int | None = None
+) -> str:
+    """A category-focused view of the diff, for token-efficient prompts.
+
+    Analysis agents don't all need the whole change: a security agent cares
+    about hunks touching SQL/HTTP/auth patterns, a testing agent about test
+    files, and so on. This returns the diff text restricted to files whose
+    added lines match the category's deterministic patterns, falling back to
+    the full diff when nothing matches (never starve the agent of the change).
+
+    When ``max_chars`` is given the result is truncated conservatively (hunks
+    are dropped from the end, keeping the first files), so a very large diff
+    can still be fit into a category budget without arbitrary mid-line cuts.
+    """
+    from agentic_code_reviewer.analysis.rules import CATEGORY_PATTERNS
+
+    patterns = CATEGORY_PATTERNS.get(category, [])
+    if not patterns:
+        return diff_to_text(files)
+    kept: list[DiffFile] = []
+    for f in files:
+        added = "\n".join(ln.text for ln in f.added_lines)
+        if any(pattern.search(added) for _, pattern in patterns):
+            kept.append(f)
+    if not kept:
+        return diff_to_text(files)
+    text = diff_to_text(kept)
+    if max_chars is None or len(text) <= max_chars:
+        return text
+    # Conservative truncation: drop whole files from the end until it fits.
+    while len(kept) > 1:
+        without = diff_to_text(kept[:-1])
+        if len(without) <= max_chars:
+            return without
+        kept = kept[:-1]
+    # Last resort: hard character cut on the remaining files' text.
+    return diff_to_text(kept)[:max_chars]

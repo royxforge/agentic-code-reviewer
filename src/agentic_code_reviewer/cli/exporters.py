@@ -106,7 +106,7 @@ def review_to_sarif(result: WorkflowResult) -> str:
                     "tool": {
                         "driver": {
                             "name": "agentic-code-reviewer",
-                            "informationUri": "https://github.com/agentic-code-reviewer",
+                            "informationUri": "https://github.com/royxforge/agentic-code-reviewer",
                             "version": review.version,
                             "rules": list(rules.values()),
                         }

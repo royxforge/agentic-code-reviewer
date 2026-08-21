@@ -54,6 +54,10 @@ Repository context (relevant excerpts):
 
 $CONTEXT$
 
+Knowledgebase (relevant past verified findings, rules and decisions for this repository):
+
+$KNOWLEDGE$
+
 Analyze the change for material architectural defects. Produce a JSON object with exactly
 these fields:
 - "agent": "architecture"
