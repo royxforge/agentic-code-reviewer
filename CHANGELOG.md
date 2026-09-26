@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-26
+
 ### Fixed
 
 - **Parallel stage timeout is a shared wall-clock budget**: `_run_parallel` gives each awaited future only the time remaining until the stage deadline (previously every future waited up to the full `stage_timeout_seconds`, so N tasks could block N x timeout despite the documented shared timeout).
