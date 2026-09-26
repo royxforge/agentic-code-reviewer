@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Parallel stage timeout is a shared wall-clock budget**: `_run_parallel` gives each awaited future only the time remaining until the stage deadline (previously every future waited up to the full `stage_timeout_seconds`, so N tasks could block N x timeout despite the documented shared timeout).
 - **GitHub pagination**: PR file listing follows `Link rel="next"` (GitHub caps `per_page` at 100; a single request silently reviewed only the first page of larger PRs) and raises rather than truncating past `max_pages`; recursive git trees now raise `GitHubError` when GitHub reports `truncated: true` instead of reviewing a partial file set.
 - **Retriever readiness**: empty snapshots and embedding-count mismatches mark the index *not* ready (previously `_ready = True`); retrieved chunks are copied before their `score` is set, so one query's score no longer overwrites the shared chunk for later queries.
-- **`auto` embedding probe**: `build_embedder(mode="auto")` probes the provider with a real embedding call — the previous `try/except` wrapped a constructor that never raised, so it could never fail over to the local embedder.
+- **`auto` embedding probe**: `build_embedder(mode="auto")` probes the provider with a real embedding call -- the previous `try/except` wrapped a constructor that never raised, so it could never fail over to the local embedder.
 - **LLM cache keys include the provider**, so `qwen2.5-coder:7b` via ollama and via an OpenAI-compatible endpoint can no longer collide on disk cache.
 
 ---
