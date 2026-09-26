@@ -18,6 +18,11 @@ keywords:
   - agents
   - security
   - taint analysis
+  - software engineering
+  - ai-assisted development
+  - code quality
+  - deterministic verification
+  - reproducible builds
 abstract: "Production-grade agentic code reviewer: a multi-step LLM workflow with repository context retrieval, layered deterministic verification (regex, AST, symbol, taint), cross-category correlation, and reproducible benchmarking. Exposes the acr CLI and an interactive terminal UI."
 preferred-citation:
   type: software
