@@ -101,6 +101,7 @@ class BaseLLMClient(ABC):
                 model=self.model,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                provider=self.provider,
             )
             hit = cache.get(key)
             if hit is not None:

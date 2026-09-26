@@ -13,6 +13,7 @@ raise (a broken knowledge store must never break a review).
 
 from __future__ import annotations
 
+import os
 import re
 import threading
 from pathlib import Path
@@ -21,6 +22,21 @@ from agentic_code_reviewer.knowledge.models import KnowledgeEntry
 
 _TOKEN_RE = re.compile(r"[A-Za-z_]\w*|\b\d+\b")
 _WRITE_LOCK = threading.Lock()
+
+
+def _restrict(path: Path, mode: int) -> None:
+    """Best-effort user-only permissions (POSIX chmod; no-op on Windows).
+
+    Mirrors ``llm.cache._restrict`` / ``config.runtime_config._restrict``:
+    knowledge entries can quote private repository context, so the store must
+    not be world-readable.
+    """
+    if os.name == "nt":
+        return
+    try:
+        path.chmod(mode)
+    except OSError:
+        pass
 
 
 def _tokens(text: str) -> set[str]:
@@ -43,7 +59,8 @@ class KnowledgeStore:
 
             directory = config_dir() / "knowledge"
         self.directory = Path(directory)
-        self.directory.mkdir(parents=True, exist_ok=True)
+        self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+        _restrict(self.directory, 0o700)
 
     # ------------------------------------------------------------------
     def _path_for(self, repository: str) -> Path:
@@ -72,9 +89,10 @@ class KnowledgeStore:
         path = self._path_for(entry.repository)
         try:
             with _WRITE_LOCK:
-                path.parent.mkdir(parents=True, exist_ok=True)
+                path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
                 with path.open("a", encoding="utf-8") as fh:
                     fh.write(entry.model_dump_json() + "\n")
+                _restrict(path, 0o600)
         except OSError:
             pass  # best-effort; never break a review for storage
 

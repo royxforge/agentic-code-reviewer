@@ -63,7 +63,10 @@ class Retriever:
                     )
                 )
         if not chunks:
-            self._ready = True
+            # Empty snapshot: not ready (nothing to serve); never mark ready
+            # with an empty index — retrieval would silently return nothing
+            # while claiming the index was built.
+            self._ready = False
             return
 
         texts = [c.text for c in chunks]
@@ -71,8 +74,8 @@ class Retriever:
         for start in range(0, len(texts), batch_size):
             vectors.extend(self._embedder.embed_texts(texts[start : start + batch_size]))
         if len(vectors) != len(chunks):
-            # Provider returned fewer embeddings than requested  -  abandon index.
-            self._ready = True
+            # Provider returned fewer embeddings than requested - abandon index.
+            self._ready = False
             return
         self._chunks = chunks
         self._vectors = vectors
@@ -91,8 +94,9 @@ class Retriever:
         scored.sort(key=lambda pair: pair[0], reverse=True)
         results: list[ContextChunk] = []
         for score, idx in scored[:top_k]:
-            chunk = self._chunks[idx]
-            chunk.score = round(score, 4)
+            # Copy before setting score: mutating the indexed chunk would leak
+            # one query's score into later queries over the same chunk.
+            chunk = self._chunks[idx].model_copy(update={"score": round(score, 4)})
             results.append(chunk)
         return results
 

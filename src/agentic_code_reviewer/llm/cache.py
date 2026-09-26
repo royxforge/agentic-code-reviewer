@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,6 +28,22 @@ from pathlib import Path
 from agentic_code_reviewer.llm.client import LLMResponse, LLMUsage
 
 _WRITE_LOCK = threading.Lock()
+
+
+def _restrict(path: Path, mode: int = 0o600) -> None:
+    """Best-effort user-only permissions (POSIX chmod; no-op on Windows)."""
+    if os.name == "nt":
+        return
+    try:
+        path.chmod(mode)
+    except OSError:
+        pass
+
+
+def _ensure_dir(directory: Path) -> None:
+    """Create a directory with restrictive permissions (best-effort)."""
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    _restrict(directory, 0o700)
 
 
 @dataclass
@@ -44,7 +61,7 @@ class ResponseCache:
 
             directory = config_dir() / "cache" / "llm"
         self.directory = Path(directory)
-        self.directory.mkdir(parents=True, exist_ok=True)
+        _ensure_dir(self.directory)
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -54,10 +71,21 @@ class ResponseCache:
         model: str,
         temperature: float,
         max_tokens: int,
+        provider: str = "",
     ) -> str:
-        """Stable cache key for a request."""
+        """Stable cache key for a request.
+
+        ``provider`` is part of the key: the same model name on two
+        providers (or mock vs. real) must never share a cached response.
+        """
         payload = json.dumps(
-            {"messages": messages, "model": model, "temperature": temperature, "max_tokens": max_tokens},
+            {
+                "messages": messages,
+                "model": model,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "provider": provider,
+            },
             sort_keys=True,
             ensure_ascii=False,
         )

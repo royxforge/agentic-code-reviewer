@@ -685,14 +685,20 @@ class Workflow:
         names = task_names or [stage_name] * len(tasks)
         results: list[T | None] = [None] * len(tasks)
         start = time.monotonic()
+        # Shared wall-clock deadline: futures are awaited sequentially, so each
+        # one gets only the *remaining* budget. Giving every future the full
+        # stage_timeout would let N tasks wait up to N * timeout in total.
+        deadline = start + self.settings.stage_timeout_seconds
         pool = ThreadPoolExecutor(max_workers=max(1, self.settings.max_workers))
         futures = {pool.submit(task): idx for idx, task in enumerate(tasks)}
         try:
             for future in futures:
                 idx = futures[future]
                 self._emit(WorkflowEvent.stage_start(names[idx]))
+                remaining = max(0.0, deadline - time.monotonic())
                 try:
-                    results[idx] = future.result(timeout=self.settings.stage_timeout_seconds)
+                    # timeout=0 still returns immediately for completed futures.
+                    results[idx] = future.result(timeout=remaining)
                     self._emit(
                         WorkflowEvent.stage_done(names[idx], time.monotonic() - start)
                     )

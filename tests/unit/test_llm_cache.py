@@ -34,6 +34,16 @@ def test_key_changes_with_model_or_budget():
     assert a != c
 
 
+def test_key_differs_by_provider():
+    """Same model string on different providers must not share a cached response."""
+    msgs = [{"role": "user", "content": "x"}]
+    a = ResponseCache.key(msgs, model="m", temperature=0.2, max_tokens=100, provider="ollama")
+    b = ResponseCache.key(
+        msgs, model="m", temperature=0.2, max_tokens=100, provider="openai_compatible"
+    )
+    assert a != b
+
+
 def test_put_get_roundtrip(cache):
     resp = LLMResponse(content='{"findings": []}', usage=LLMUsage(input_tokens=50, output_tokens=10))
     key = ResponseCache.key([{"role": "user", "content": "q"}], model="m", temperature=0.2, max_tokens=100)

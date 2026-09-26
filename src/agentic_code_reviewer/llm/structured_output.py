@@ -81,7 +81,10 @@ def call_structured(
                 "\n\nYour previous response failed validation with this error:\n"
                 f"{fix_hint}\n"
                 "Your previous raw output was:\n"
-                f"{raw_output[:1000]}\n"
+                # Bounded excerpt: an unbounded dump of the failed output makes
+                # the repair prompt grow with every retry and can dominate the
+                # context window.
+                f"{raw_output[:500]}\n"
                 "Return ONLY the corrected JSON object now."
             )
         msgs = [{"role": "system", "content": msg}, {"role": "user", "content": content}]

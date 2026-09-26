@@ -120,12 +120,18 @@ def build_embedder(settings: Settings, llm_client: BaseLLMClient | None = None) 
     if mode == "local":
         return LocalEmbedder(settings.local_embedding_dim)
     if mode == "auto":
+        # Probe the provider: ProviderEmbedder's constructor never raises, so
+        # a bare try/except around it can never fail over. Attempt one tiny
+        # embedding instead and fall back to the local embedder if the
+        # provider is unavailable (offline, wrong key, wrong endpoint).
         for provider, dimension in _DIMENSIONS.items():
             if llm_client is not None and llm_client.provider == provider:
+                candidate = ProviderEmbedder(llm_client, dimension=dimension)
                 try:
-                    return ProviderEmbedder(llm_client, dimension=dimension)
+                    candidate.embed_texts(["ping"])
                 except RetrievalError:
                     continue
+                return candidate
     elif llm_client is not None:
         provider_name = _PROVIDER_FOR_MODE.get(mode)
         if provider_name and llm_client.provider == provider_name:

@@ -70,7 +70,9 @@ class GitHubClient:
         return self._request_text(f"/repos/{repo}/pulls/{number}", accept=_ACCEPT_DIFF)
 
     def get_pull_request_files(self, repo: str, number: int) -> list[FileChange]:
-        data = self._request_json(f"/repos/{repo}/pulls/{number}/files", per_page=300)
+        data = self._request_json_paginated(
+            f"/repos/{repo}/pulls/{number}/files", per_page=100
+        )
         return [
             FileChange(
                 filename=item.get("filename", ""),
@@ -112,8 +114,19 @@ class GitHubClient:
             return ""
 
     def get_tree_paths(self, repo: str, sha: str) -> list[str]:
-        """Recursive git tree file paths at ``sha`` (may be truncated for huge repos)."""
+        """Recursive git tree file paths at ``sha``.
+
+        GitHub truncates recursive trees for very large repositories and sets
+        ``truncated: true``; surface that instead of silently reviewing a
+        partial file list.
+        """
         data = self._request_json(f"/repos/{repo}/git/trees/{sha}?recursive=1")
+        if data.get("truncated"):
+            raise GitHubError(
+                f"Git tree for {repo}@{sha} was truncated by GitHub; the "
+                "repository is too large for recursive listing. Restrict the "
+                "review to a subdirectory instead of reviewing a partial file set."
+            )
         paths = []
         for item in data.get("tree", []):
             if item.get("type") == "blob":
@@ -151,6 +164,45 @@ class GitHubClient:
             return resp.json()
         except ValueError as exc:
             raise GitHubError(f"Invalid JSON from GitHub for {url}", detail=str(exc)) from exc
+
+    def _request_json_paginated(self, url: str, *, per_page: int = 100, max_pages: int = 40) -> list:
+        """Fetch every page of a list endpoint via the ``Link`` header.
+
+        GitHub caps ``per_page`` at 100; a single request on PR files
+        (commonly >100 for large PRs) silently reviewed only the first page.
+        ``max_pages`` bounds the request count for pathological inputs.
+        """
+        import re
+
+        results: list = []
+        next_url: str | None = url
+        next_params: dict[str, Any] | None = {"per_page": per_page}
+        pages = 0
+        link_re = re.compile(r'<([^>]+)>;\s*rel="next"')
+
+        while next_url and pages < max_pages:
+            resp = self._client.get(next_url, params=next_params)
+            self._raise_for_status(resp, next_url)
+            try:
+                page = resp.json()
+            except ValueError as exc:
+                raise GitHubError(f"Invalid JSON from GitHub for {next_url}", detail=str(exc)) from exc
+            if not isinstance(page, list):
+                raise GitHubError(f"Expected a JSON list from {next_url}, got {type(page).__name__}")
+            results.extend(page)
+
+            link_header = resp.headers.get("Link", "")
+            match = link_re.search(link_header)
+            next_url = match.group(1) if match else None
+            next_params = None  # pagination URLs already carry their query params
+            pages += 1
+
+        if next_url:
+            raise GitHubError(
+                f"Pagination for {url} exceeded {max_pages} pages; refusing to "
+                "review a silently truncated file list."
+            )
+        return results
 
     def _request_text(self, url: str, *, accept: str) -> str:
         resp = self._client.get(url, headers={"Accept": accept})

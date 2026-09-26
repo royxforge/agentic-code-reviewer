@@ -84,6 +84,40 @@ def test_call_structured_raises_after_repair_failure():
         current_stage.reset(token)
 
 
+def test_call_structured_truncates_repair_prompt():
+    """Repair prompt must bound the raw output excerpt to 500 characters."""
+    seen_prompts: list[str] = []
+
+    class LongOutputClient(MockLLMClient):
+        def __init__(self) -> None:
+            super().__init__(responses={"demo": '{"name": "ok", "count": 1}'})
+            self._calls = 0
+
+        def complete(self, messages, **kwargs):
+            self._calls += 1
+            seen_prompts.append(messages[-1]["content"])
+            if self._calls == 1:
+                from agentic_code_reviewer.llm.client import LLMResponse, LLMUsage
+
+                # 2000 characters of invalid output
+                return LLMResponse(content="X" * 2000, usage=LLMUsage())
+            return super().complete(messages, **kwargs)
+
+    client = LongOutputClient()
+    token = current_stage.set("demo")
+    try:
+        parsed, _, calls = call_structured(client, Demo, "sys", "task")
+    finally:
+        current_stage.reset(token)
+
+    assert parsed.count == 1
+    assert calls == 2
+    repair_prompt = seen_prompts[1]
+    # The excerpt in the repair prompt must contain 500 X's, not 1000 or 2000
+    assert "X" * 500 in repair_prompt
+    assert "X" * 501 not in repair_prompt
+
+
 def test_call_structured_validates_schema():
     client = MockLLMClient(responses={"demo": '{"name": "x", "count": "not-a-number"}'})
     token = current_stage.set("demo")
