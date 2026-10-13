@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/TUI-Textual-a78bfa?style=flat-square" />
   <img src="https://img.shields.io/badge/Categories-23-6366f1?style=flat-square" />
   <img src="https://img.shields.io/badge/Providers-6-0ea5e9?style=flat-square" />
-  <img src="https://img.shields.io/badge/Tests-432%20passing-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/badge/Tests-462%20passing-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/github/actions/workflow/status/royxforge/agentic-code-reviewer/publish.yml?style=flat-square&label=publish" />
   <img src="https://img.shields.io/badge/License-MIT-6366f1?style=flat-square" />
 </p>
@@ -480,6 +480,34 @@ acr evaluate --config configs/experiment.yaml
 ```
 
 Experiment config keys: `name`, `dataset`, `systems` (list or comma string), `limit` (or `null`), `settings` (any `Settings` field, e.g. ablation switches like `workflow_use_retrieval: false`), `notes`. Results - metrics, prompts, per-entry artifacts - land in an immutable, timestamped directory under `experiments/`.
+
+### Regression gate
+
+Compare a run against a previous one and fail CI when it got worse. Every run
+writes `metrics.json`, so a stored run is a ready-made baseline:
+
+```bash
+acr benchmark --dataset benchmarks/datasets/fixture_small.json \
+    --baseline benchmarks/results/20261013_082659_benchmark/metrics.json \
+    --fail-on-regression --max-drop 0.02
+
+Regression check vs baseline (tolerance 0.02):
+  regressed  single-pass: missing from this run
+  regressed  agentic.recall: 0.6600 -> 0.5100 (-0.1500)
+  2 regression(s) detected.
+✗ Benchmark regression gate failed vs .../metrics.json
+```
+
+- Direction-aware: `precision`, `recall`, `f1`, `false_positive_rate`
+  (lower), `bug_detection_rate`, `severity_accuracy` and `completion_rate` must
+  not fall, while `mean_latency_s`, `mean_cost_usd` and `total_tokens` must not
+  rise. A metric only present in the baseline counts as a regression.
+- `--baseline` alone prints the comparison without changing the exit code;
+  `--fail-on-regression` turns it into a gate, and `--max-drop` sets the
+tolerance (default `0.02`) so run-to-run LLM noise cannot trip it.
+- A baseline system missing from the new run fails the gate, and
+  `--fail-on-regression` without `--baseline` is a usage error rather than a
+  silent pass.
 
 Fetch real historical-bug data (SWE-bench; requires `pip install datasets`):
 

@@ -64,6 +64,11 @@ from agentic_code_reviewer.errors import ReviewerError
 from agentic_code_reviewer.evaluation.benchmark import BenchmarkLoader
 from agentic_code_reviewer.evaluation.experiments import ExperimentTracker
 from agentic_code_reviewer.evaluation.metrics import format_results_table, to_table_row
+from agentic_code_reviewer.evaluation.regression import (
+    DEFAULT_TOLERANCE,
+    compare_metrics,
+    load_metrics,
+)
 from agentic_code_reviewer.evaluation.runner import run_benchmark
 from agentic_code_reviewer.github.adapter import request_from_commit, request_from_pull_request
 from agentic_code_reviewer.github.client import GitHubClient
@@ -268,6 +273,40 @@ def _print_metrics(metrics: dict, path: Path) -> None:
     rows = [to_table_row(m) for m in metrics.values()]
     console.print("\n" + format_results_table(rows))
     console.print(f"[dim]Artifacts written to {path}[/dim]")
+
+
+def _run_regression_gate(
+    baseline: Path | None,
+    metrics: dict,
+    *,
+    tolerance: float,
+    fail_on_regression: bool,
+    out: Console | None = None,
+) -> None:
+    """Compare a finished run against a stored ``metrics.json`` baseline.
+
+    With ``baseline`` set the comparison is always printed; the exit-code gate
+    only engages with ``fail_on_regression``, so a local run can inspect the
+    deltas without CI semantics.
+    """
+    if baseline is None:
+        if fail_on_regression:
+            raise typer.BadParameter("--fail-on-regression requires --baseline")
+        return
+
+    out = out or console
+    previous = load_metrics(baseline)
+    current = {name: to_table_row(m) for name, m in metrics.items()}
+    report = compare_metrics(previous, current, tolerance=tolerance)
+    out.print("\n" + report.format())
+
+    if not fail_on_regression:
+        return
+    if report.ok:
+        out.print(f"[green]✔ No regressions vs {baseline}.[/green]")
+        return
+    out.print(f"[red]✗ Benchmark regression gate failed vs {baseline}.[/red]")
+    raise typer.Exit(code=1)
 
 
 def _publish(github: GitHubClient, repo: str, pr: int, result: WorkflowResult) -> None:
@@ -990,6 +1029,21 @@ def benchmark(
         "--provider",
         help="Override LLM_PROVIDER (openai | anthropic | ollama | gemini | openai-compatible | mock)",
     ),
+    baseline: Path | None = typer.Option(
+        None,
+        "--baseline",
+        help="metrics.json from a previous run to compare this run against",
+    ),
+    max_drop: float = typer.Option(
+        DEFAULT_TOLERANCE,
+        "--max-drop",
+        help="Change tolerated before a metric counts as a regression",
+    ),
+    fail_on_regression: bool = typer.Option(
+        False,
+        "--fail-on-regression",
+        help="Exit 1 when any metric regresses vs --baseline (CI gate)",
+    ),
 ) -> None:
     """Run baseline + agentic systems over a benchmark dataset."""
     settings = _settings()
@@ -1002,12 +1056,33 @@ def benchmark(
     tracker.save_config({"dataset": str(dataset), "systems": selected, "limit": limit})
     metrics = run_benchmark(entries, selected, settings, tracker, limit=limit)
     _print_metrics(metrics, tracker.path)
+    _run_regression_gate(
+        baseline,
+        metrics,
+        tolerance=max_drop,
+        fail_on_regression=fail_on_regression,
+    )
 
 
 @app.command()
 def evaluate(
     config: Path = typer.Option(..., "--config", help="Experiment YAML configuration"),
     name: str | None = typer.Option(None, "--name", help="Experiment name override"),
+    baseline: Path | None = typer.Option(
+        None,
+        "--baseline",
+        help="metrics.json from a previous run to compare this run against",
+    ),
+    max_drop: float = typer.Option(
+        DEFAULT_TOLERANCE,
+        "--max-drop",
+        help="Change tolerated before a metric counts as a regression",
+    ),
+    fail_on_regression: bool = typer.Option(
+        False,
+        "--fail-on-regression",
+        help="Exit 1 when any metric regresses vs --baseline (CI gate)",
+    ),
 ) -> None:
     """Run a reproducible experiment defined by a YAML config."""
     import yaml
@@ -1032,6 +1107,12 @@ def evaluate(
         entries, systems, settings, tracker, limit=limit, summary=cfg.get("notes", "")
     )
     _print_metrics(metrics, tracker.path)
+    _run_regression_gate(
+        baseline,
+        metrics,
+        tolerance=max_drop,
+        fail_on_regression=fail_on_regression,
+    )
 
 
 # ---------------------------------------------------------------------------

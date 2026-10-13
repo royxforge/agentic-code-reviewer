@@ -28,14 +28,26 @@ def _request(sql_diff: str, repo_files: dict[str, str]) -> ReviewRequest:
     )
 
 
-async def _wait_for_results(app, timeout: float = 30.0) -> None:
-    """Pump the app loop until the results screen is active."""
+async def _wait_for_results(app, pilot, timeout: float = 30.0) -> None:
+    """Pump the app loop until the results screen is active and settled.
+
+    ``switch_screen()`` installs the new screen on the stack *before* its
+    compose/mount messages are dispatched, so observing a ``ResultsScreen``
+    only means the switch was requested. Returning at that point lets
+    ``run_test()`` shut down while ``ResultsScreen.on_mount`` is still queued:
+    the teardown removes the widgets underneath it and ``query_one`` raises
+    ``NoMatches: #findings-table``, which Textual re-raises as a panic at exit.
+    ``pilot.pause()`` waits for the screen and its children to finish
+    processing pending events, so the mount completes first.
+    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if isinstance(app.screen, ResultsScreen):
-            return
+            break
         await asyncio.sleep(0.05)
-    raise AssertionError(f"results screen never appeared; got {type(app.screen)}")
+    else:
+        raise AssertionError(f"results screen never appeared; got {type(app.screen)}")
+    await pilot.pause()
 
 
 def test_pipeline_screen_renders_and_streams_events():
@@ -80,7 +92,7 @@ def test_reviewer_app_pipeline_to_results(
             await pilot.pause()
             # The mock workflow finishes almost instantly; the app may already
             # be on the results screen. Poll for the transition either way.
-            await _wait_for_results(app)
+            await _wait_for_results(app, pilot)
 
             results = app.screen
             assert isinstance(results, ResultsScreen)
@@ -151,7 +163,7 @@ def test_reviewer_app_exports_markdown(
     async def _run() -> None:
         async with app.run_test() as pilot:
             await pilot.pause()
-            await _wait_for_results(app)
+            await _wait_for_results(app, pilot)
             # Trigger the export action directly (no keypress needed).
             app.action_export()
             assert export.exists()

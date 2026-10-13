@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-13
+
+### Added
+
+- **Benchmark regression gate**: `acr benchmark` and `acr evaluate` accept `--baseline <metrics.json>` to compare a run against a stored one, `--max-drop` for the tolerated change, and `--fail-on-regression` to exit `1` when a metric regresses, so a prompt/model/retriever change that trades recall for latency fails CI instead of only being visible in the results table. Deltas are printed for every metric and direction-aware: quality metrics are better when higher, while `false_positive_rate`, `mean_latency_s`, `mean_cost_usd` and `total_tokens` are better when lower. A baseline system missing from the new run counts as a regression.
+- **`evaluation.regression`**: `compare_metrics()` and `load_metrics()` return a `RegressionReport` with per-metric deltas, so the comparison is reusable outside the CLI (notebooks, custom CI jobs) rather than living in the command handler. Rounding happens before the tolerance test, so a value sitting exactly on the boundary cannot trip the gate through float noise.
+
 ## [0.4.0] - 2026-09-26
 
 ### Fixed
