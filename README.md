@@ -9,12 +9,19 @@
   <img src="https://img.shields.io/badge/TUI-Textual-a78bfa?style=flat-square" />
   <img src="https://img.shields.io/badge/Categories-23-6366f1?style=flat-square" />
   <img src="https://img.shields.io/badge/Providers-6-0ea5e9?style=flat-square" />
-  <img src="https://img.shields.io/badge/Tests-462%20passing-brightgreen?style=flat-square" />
+  <a href="https://github.com/royxforge/agentic-code-reviewer/actions/workflows/ci.yml"><img src="https://github.com/royxforge/agentic-code-reviewer/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/github/actions/workflow/status/royxforge/agentic-code-reviewer/publish.yml?style=flat-square&label=publish" />
   <img src="https://img.shields.io/badge/License-MIT-6366f1?style=flat-square" />
 </p>
 
-> A production-grade, agentic code reviewer. It analyzes real software changes the way a senior engineer would - planning, targeted repository context, staged analysis across **23 evidence-backed categories**, layered deterministic verification (regex, AST, symbol, taint), and a final aggregated review - then measures whether that agentic approach actually beats single-pass review with a leakage-controlled benchmark. Ships as the `acr` CLI with a full-screen Textual terminal dashboard, works with six LLM providers, and needs no `.env` file: everything is configured from the CLI or the TUI.
+> **A code reviewer that never lets the model grade its own work: every finding is re-checked against the real diff, the changed lines and the surrounding symbols before it ships.** 23 evidence-backed categories, layered deterministic verification (regex, AST, symbol, taint), six providers, and a full-screen Textual dashboard, all behind one `acr` command with no `.env` file.
+>
+> **Result:** **462 tests pass fully offline** in about two minutes, with ruff and mypy clean across 101 source files — provider calls are transport-mocked, so CI proves the pipeline without spending a token.
+>
+> **Try it on CPU, no key:** `LOG_LEVEL=WARNING LLM_PROVIDER=mock acr review-local .` (drop `LOG_LEVEL` to see the structured run log)
+
+<img src="docs/demo.gif" alt="Terminal demo: acr review-local . against the mock provider - no API key" width="820" />
+
 
 ---
 
@@ -79,7 +86,7 @@ The core requirement is not "generate findings." It is "generate findings that h
 
 ## Key Results
 
-> **432 tests passing, ruff clean, mypy clean across 100 source files, and a fully offline test suite - provider calls are transport-mocked and workflow/UI tests run against deterministic mock clients.**
+> **462 tests passing, ruff clean, mypy clean across 100 source files, and a fully offline test suite - provider calls are transport-mocked and workflow/UI tests run against deterministic mock clients.**
 
 | Signal | Value |
 |---|---|
@@ -88,7 +95,7 @@ The core requirement is not "generate findings." It is "generate findings that h
 | LLM providers | 6 (OpenAI, Anthropic, Gemini, OpenAI-compatible, Ollama, mock) |
 | Output formats | Markdown, JSON, SARIF 2.1.0 |
 | Benchmark systems | single-pass, context, rag, agentic |
-| Test suite | 432 passing, fully offline |
+| Test suite | 462 passing, fully offline |
 | Runtime execution of reviewed code | never |
 
 An honest benchmark: metrics are empty until experiments actually run - nothing is fabricated. Run `acr benchmark` (keyless with the mock provider) to reproduce the full harness yourself.
@@ -522,7 +529,7 @@ python scripts/fetch_swebench.py --output benchmarks/datasets/swebench_review.js
 ```bash
 pip install -e ".[dev]"           # or ".[all]" for providers + dev tools
 
-pytest                            # 432 tests: unit + integration + failure-path
+pytest                            # 462 tests: unit + integration + failure-path
 ruff check src/ tests/            # lint
 mypy src/agentic_code_reviewer            # type checking
 ```

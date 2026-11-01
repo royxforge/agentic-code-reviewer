@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`evaluation.regression.RegressionReport` typing**: `missing_systems` and `extra_systems` were declared `list[str] | None` while `__post_init__` always replaced them with lists, so `mypy src` failed on the two places that iterate and `len()` them (2 errors, 101 files). Both fields now default to `field(default_factory=list)`; passing `None` explicitly still normalises, so runtime behaviour is unchanged.
+
+### Changed
+
+- **`docs/demo.gif` re-recorded**: the previous GIF was drawn with a font that had no box-drawing glyphs, so the report's table borders and separators rendered as tofu boxes. The new recording is captured from a real `LOG_LEVEL=WARNING LLM_PROVIDER=mock acr review-local .` run and rendered with a glyph-complete monospace font, so the summary table is legible. The README's offline-test claim was also corrected to 462 tests in about two minutes, measured on the current suite. The README's demo line now shows the same command.
+
 ## [0.5.0] - 2026-10-13
 
 ### Added

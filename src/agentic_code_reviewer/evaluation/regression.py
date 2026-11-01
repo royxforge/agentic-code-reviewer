@@ -14,7 +14,7 @@ are better when lower.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from agentic_code_reviewer.errors import BenchmarkError
@@ -116,10 +116,11 @@ class RegressionReport:
 
     deltas: list[MetricDelta]
     tolerance: float = DEFAULT_TOLERANCE
-    missing_systems: list[str] | None = None
-    extra_systems: list[str] | None = None
+    missing_systems: list[str] = field(default_factory=list)
+    extra_systems: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
+        # Callers may pass ``None`` explicitly; normalise to a fresh list.
         self.missing_systems = list(self.missing_systems or [])
         self.extra_systems = list(self.extra_systems or [])
 
